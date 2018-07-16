@@ -44,7 +44,8 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 }
 
 func (s *Skiplist) searchAndUpsert(e *Element) {
-	e.insert(s.search(e))
+	left, iter := s.search(e)
+	s.insert(left, e, iter)
 }
 
 // not done
@@ -72,9 +73,33 @@ func (s *Skiplist) search(e *Element) (left []*Element, iter *Element) {
 	return
 }
 
-func min(a, b int) int {
-	if a <= b {
-		return a
+// right is a redundant but cheap-to-have piece of information.
+func (s *Skiplist) insert(left []*Element, e, right *Element) {
+	if right != nil && e.key == right.key {
+		s.replace(left, e, right)
+	} else {
+		s.insertBetween(left, e, right)
 	}
-	return b
 }
+
+func (s *Skiplist) insertBetween(left []*Element, e, right *Element) {
+
+	for i := 0; i < len(e.nexts); i++ {
+
+		if right != nil && i < len(right.nexts) {
+			e.nexts[i] = right
+		} else {
+			if left[i] != nil {
+				e.nexts[i] = left[i].nexts[i]
+			} else {
+				e.nexts[i] = s.front[i]
+			}
+		}
+
+		if left[i] == nil {
+			s.front[i] = e
+		} else {
+			left[i] = e
+		}
+	}
+} // TODO: check on paper

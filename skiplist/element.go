@@ -23,9 +23,12 @@ func (e *Element) Val() []byte {
 // ValCopy is just like Val except mutating the returned slice will not
 // mutate the slice inside the skiplist.
 func (e *Element) ValCopy() []byte {
-	b := make([]byte, len(e.val))
-	copy(b, e.val)
-	return b
+	if e.val != nil {
+		b := make([]byte, len(e.val))
+		copy(b, e.val)
+		return b
+	}
+	return nil
 }
 
 func newElem(key string, val []byte) *Element {
@@ -45,12 +48,4 @@ func addHeight() int {
 		}
 	}
 	return n
-}
-
-func (e *Element) insert(left []*Element, right *Element) {
-	if e.key == right.key {
-		e.replace(left, right)
-	} else {
-		e.insertBetween(left, right)
-	}
 }
