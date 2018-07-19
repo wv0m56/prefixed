@@ -49,7 +49,7 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 
 		for i := 0; i < len(e.nexts); i++ {
 
-			s.front[i] = e
+			s.front[i] = e // e.nexts implied from zero vals
 		}
 
 	} else {
@@ -77,7 +77,7 @@ func (s *Skiplist) search(e *Element) (left []*Element, iter *Element) {
 		} else {
 
 			left[h] = left[h+1]
-			iter = left[h+1].nexts[h]
+			iter = left[h].nexts[h]
 		}
 
 		for { // forward loop
@@ -134,33 +134,30 @@ func (s *Skiplist) insertBetween(left []*Element, e, right *Element) {
 
 func (s *Skiplist) replace(left []*Element, e, right *Element) {
 
-	if right == nil {
+	for i := 0; i < max(len(e.nexts), len(right.nexts)); i++ {
 
-		for i := 0; i < len(e.nexts); i++ {
+		if i < len(e.nexts) { // up to equal height, damn zero based index
 
-			e.nexts[i] = right
-			s.reassignLeftAtIndex(i, left, e)
-		}
-	} else {
+			if i < len(right.nexts) {
 
-		for i := 0; i < max(len(e.nexts), len(right.nexts)); i++ {
-
-			if i < len(e.nexts) { // up to equal height, damn zero based index
-
-				if i < len(right.nexts) {
-
-					e.nexts[i] = right.nexts[i]
-
-				} else {
-
-					e.nexts[i] = left[i]
-				}
-				s.reassignLeftAtIndex(i, left, e)
+				e.nexts[i] = right.nexts[i]
 
 			} else {
 
-				s.reassignLeftAtIndex(i, left, right.nexts[i])
+				if left[i] != nil {
+
+					e.nexts[i] = left[i].nexts[i]
+
+				} else {
+
+					e.nexts[i] = s.front[i]
+				}
 			}
+			s.reassignLeftAtIndex(i, left, e)
+
+		} else {
+
+			s.reassignLeftAtIndex(i, left, right.nexts[i])
 		}
 	}
 }
@@ -175,13 +172,6 @@ func (s *Skiplist) reassignLeftAtIndex(i int, left []*Element, e *Element) {
 
 func max(a, b int) int {
 	if a >= b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a <= b {
 		return a
 	}
 	return b
