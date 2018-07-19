@@ -59,7 +59,7 @@ func BenchmarkInserts(b *testing.B) {
 
 	rand.Seed(42394084908978634)
 
-	N := 1000 * 100
+	N := 1000 * 10
 	skip := NewSkiplist()
 	for i := 0; i < N; i++ {
 		skip.Upsert(strconv.Itoa(rand.Int()), nil)
