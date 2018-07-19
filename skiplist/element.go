@@ -1,6 +1,6 @@
 package skiplist
 
-const maxHeight = 32
+const maxHeight = 10
 
 // An Element is a KV node in the skiplist. Internally, it holds the height information
 // determined by a series of coin flips and pointers to the next element at each level
@@ -32,7 +32,7 @@ func (e *Element) ValCopy() []byte {
 	return nil
 }
 
-// Next returns the next element.
+// Next returns the next element using the 0th level pointer. It is not thread safe.
 func (e *Element) Next() *Element {
 	return e.nexts[0]
 }

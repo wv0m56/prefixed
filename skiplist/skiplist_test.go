@@ -3,6 +3,7 @@ package skiplist
 import (
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,4 +53,21 @@ func TestInsertsInternal(t *testing.T) {
 	}
 	assert.Equal(t, "zulu", first.Next().Key())
 	fmt.Println(len(first.nexts))
+}
+
+func BenchmarkInserts(b *testing.B) {
+
+	rand.Seed(42394084908978634)
+
+	N := 1000 * 100
+	skip := NewSkiplist()
+	for i := 0; i < N; i++ {
+		skip.Upsert(strconv.Itoa(rand.Int()), nil)
+	}
+
+	k := strconv.Itoa(rand.Int())
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		skip.Upsert(k, nil)
+	}
 }
