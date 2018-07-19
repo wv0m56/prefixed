@@ -116,16 +116,6 @@ func (s *Skiplist) insertBetween(left []*Element, e, right *Element) {
 
 			e.nexts[i] = right
 
-		} else {
-
-			if left[i] != nil {
-
-				e.nexts[i] = left[i].nexts[i]
-
-			} else {
-
-				e.nexts[i] = s.front[i]
-			}
 		}
 
 		s.reassignLeftAtIndex(i, left, e)

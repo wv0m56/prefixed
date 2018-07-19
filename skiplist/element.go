@@ -1,6 +1,6 @@
 package skiplist
 
-const maxHeight = 10
+const maxHeight = 32
 
 // An Element is a KV node in the skiplist. Internally, it holds the height information
 // determined by a series of coin flips and pointers to the next element at each level
