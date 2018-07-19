@@ -15,3 +15,10 @@ func flipCoin() bool {
 	}
 	return false
 }
+
+// SetRandSource sets the random number generator used to perform the coin flips
+// to determine an element's "height". It is not thread safe and is meant to be
+// called only once before using the package.
+func SetRandSource(src rand.Source) {
+	randSource = src
+}

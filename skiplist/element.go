@@ -15,6 +15,7 @@ func (e *Element) Key() string {
 	return e.key
 }
 
+// Val returns the byte slice contained in the element.
 // Mutating the returned slice will mutate the slice inside the skiplist.
 func (e *Element) Val() []byte {
 	return e.val
@@ -31,12 +32,17 @@ func (e *Element) ValCopy() []byte {
 	return nil
 }
 
+// Next returns the next element.
+func (e *Element) Next() *Element {
+	return e.nexts[0]
+}
+
 func newElem(key string, val []byte) *Element {
 	e := &Element{}
-	l := 1 + addHeight()
+	lvl := 1 + addHeight()
 	e.key = key
 	e.val = val
-	e.nexts = make([]*Element, l)
+	e.nexts = make([]*Element, lvl)
 	return e
 }
 

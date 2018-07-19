@@ -20,7 +20,17 @@ func NewSkiplist() *Skiplist {
 
 // Init must be called on a skiplist created without calling NewSkiplist().
 func (s *Skiplist) Init() {
+	s.mu.Lock()
 	s.front = make([]*Element, maxHeight)
+	s.size = 0
+	s.mu.Unlock()
+}
+
+// First returns the first element in the skiplist.
+func (s *Skiplist) First() *Element {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.front[0]
 }
 
 // Upsert searches for insert position and insert into that position.
@@ -46,6 +56,7 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 
 		s.searchAndUpsert(e)
 	}
+
 	s.size++
 }
 
@@ -54,7 +65,6 @@ func (s *Skiplist) searchAndUpsert(e *Element) {
 	s.insert(left, e, iter)
 }
 
-// not done
 func (s *Skiplist) search(e *Element) (left []*Element, iter *Element) {
 	left = make([]*Element, maxHeight)
 
@@ -159,7 +169,7 @@ func (s *Skiplist) reassignLeftAtIndex(i int, left []*Element, e *Element) {
 	if left[i] == nil {
 		s.front[i] = e
 	} else {
-		left[i] = e
+		left[i].nexts[i] = e
 	}
 }
 
