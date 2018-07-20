@@ -145,6 +145,8 @@ func TestInsertsInternal(t *testing.T) {
 	assert.Nil(t, es)
 	es = skip.GetByPrefix("{{{{{{{{}@#")
 	assert.Equal(t, 1, len(es))
+	es = skip.GetByPrefix("carni")
+	assert.Equal(t, 2, len(es))
 }
 
 func BenchmarkInserts(b *testing.B) {
