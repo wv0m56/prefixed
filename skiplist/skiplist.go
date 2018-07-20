@@ -6,9 +6,9 @@ import (
 
 // Skiplist implements a skip list guarded by a RWMutex.
 type Skiplist struct {
-	front []*Element
-	size  int
-	mu    sync.RWMutex
+	front            []*Element
+	len, payloadSize int64
+	mu               sync.RWMutex
 }
 
 // NewSkiplist returns Skiplist with a height of 32.
@@ -22,8 +22,22 @@ func NewSkiplist() *Skiplist {
 func (s *Skiplist) Init() {
 	s.mu.Lock()
 	s.front = make([]*Element, maxHeight)
-	s.size = 0
+	s.len = 0
 	s.mu.Unlock()
+}
+
+// Len returns the number of elements inside the skiplist.
+func (s *Skiplist) Len() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.len
+}
+
+// PayloadSize returns the total sum of len(Val) from all elements.
+func (s *Skiplist) PayloadSize() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.payloadSize
 }
 
 // First returns the first element in the skiplist.
@@ -45,7 +59,7 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.size == 0 {
+	if s.len == 0 {
 
 		for i := 0; i < len(e.nexts); i++ {
 
@@ -57,7 +71,7 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 		s.searchAndUpsert(e)
 	}
 
-	s.size++
+	s.len++
 }
 
 func (s *Skiplist) searchAndUpsert(e *Element) {
@@ -123,9 +137,12 @@ func (s *Skiplist) insertBetween(left []*Element, e, right *Element) {
 
 		s.reassignLeftAtIndex(i, left, e)
 	}
+	s.payloadSize += int64(len(e.val))
 }
 
 func (s *Skiplist) replace(left []*Element, e, right *Element) {
+
+	s.payloadSize -= int64(len(right.val))
 
 	for i := 0; i < max(len(e.nexts), len(right.nexts)); i++ {
 
@@ -146,6 +163,7 @@ func (s *Skiplist) replace(left []*Element, e, right *Element) {
 			s.reassignLeftAtIndex(i, left, right.nexts[i])
 		}
 	}
+	s.payloadSize += int64(len(e.val))
 }
 
 func (s *Skiplist) takeNextsFromLeftAtIndex(i int, left []*Element, e *Element) {

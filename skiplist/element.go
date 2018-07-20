@@ -16,7 +16,9 @@ func (e *Element) Key() string {
 }
 
 // Val returns the byte slice contained in the element.
-// Mutating the returned slice will mutate the slice inside the skiplist.
+// Mutating the returned slice will mutate the slice inside the skiplist
+// without updating PayloadSize, so don't do it. This method is only provided
+// for space efficiency for large Val.
 func (e *Element) Val() []byte {
 	return e.val
 }
