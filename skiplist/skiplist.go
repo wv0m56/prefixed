@@ -2,14 +2,12 @@ package skiplist
 
 import (
 	"strings"
-	"sync"
 )
 
-// Skiplist implements a skip list guarded by a RWMutex.
+// Skiplist implements a skip list.
 type Skiplist struct {
 	front            []*Element
 	len, payloadSize int64
-	mu               sync.RWMutex
 }
 
 // NewSkiplist returns Skiplist with a height of 32.
@@ -21,30 +19,22 @@ func NewSkiplist() *Skiplist {
 
 // Init must be called on a skiplist created without calling NewSkiplist().
 func (s *Skiplist) Init() {
-	s.mu.Lock()
 	s.front = make([]*Element, maxHeight)
 	s.len = 0
-	s.mu.Unlock()
 }
 
 // Len returns the number of elements inside the skiplist.
 func (s *Skiplist) Len() int64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.len
 }
 
 // PayloadSize returns the total sum of len(Val) from all elements.
 func (s *Skiplist) PayloadSize() int64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.payloadSize
 }
 
 // First returns the first element in the skiplist.
 func (s *Skiplist) First() *Element {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	return s.front[0]
 }
 
@@ -57,8 +47,6 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 		return
 	}
 	e := newElem(key, val)
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.len == 0 {
 
@@ -77,8 +65,7 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 
 // Get finds an Element by key. Returns nil if not found.
 func (s *Skiplist) Get(key string) *Element {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+
 	_, it := s.search(key)
 	if it.key == key {
 		return it
@@ -90,8 +77,6 @@ func (s *Skiplist) Get(key string) *Element {
 // It returns nil if no such thing is found.
 func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	_, it := s.search(p)
 
 	for ; strings.HasPrefix(it.key, p); it = it.Next() {
@@ -101,6 +86,16 @@ func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
 		}
 	}
 	return
+}
+
+// Del deletes the element refered by key.
+func (s *Skiplist) Del(key string) {
+	//
+}
+
+// DelByPrefix deletes elements with keys which have prefix p.
+func (s *Skiplist) DelByPrefix(p string) {
+	//
 }
 
 func (s *Skiplist) searchAndUpsert(e *Element) {
