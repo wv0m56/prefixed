@@ -93,9 +93,6 @@ func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	_, it := s.search(p)
-	if it.key != p {
-		return
-	}
 
 	for ; strings.HasPrefix(it.key, p); it = it.Next() {
 		es = append(es, it)

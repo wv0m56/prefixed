@@ -1,7 +1,6 @@
 package skiplist
 
 import (
-	"fmt"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -57,7 +56,6 @@ func TestInsertsInternal(t *testing.T) {
 		}
 	}
 	assert.Equal(t, "zulu", first.Next().Key())
-	fmt.Println(len(first.nexts))
 
 	// "angola"
 	skip.Upsert("angola", nil)
@@ -180,5 +178,21 @@ func BenchmarkGet(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		skip.Get("85811")
+	}
+}
+
+func BenchmarkGetByPrefix(b *testing.B) {
+
+	rand.Seed(14242398490234)
+
+	N := 1000 * 10
+	skip := NewSkiplist()
+	for i := 0; i < N; i++ {
+		skip.Upsert(strconv.Itoa(rand.Int()), nil)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = skip.GetByPrefix("99")
 	}
 }
