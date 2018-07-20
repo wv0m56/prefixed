@@ -35,7 +35,7 @@ func (e *Element) ValCopy() []byte {
 	return nil
 }
 
-// Next returns the next element using the 0th level pointer. It is not thread safe.
+// Next returns the next element using the 0th level pointer.
 func (e *Element) Next() *Element {
 	return e.nexts[0]
 }
