@@ -76,6 +76,8 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 
 // Get finds an Element by key. Returns nil if not found.
 func (s *Skiplist) Get(key string) *Element {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	_, it := s.search(key)
 	if it.key == key {
 		return it

@@ -141,3 +141,20 @@ func BenchmarkInserts(b *testing.B) {
 		skip.Upsert(k, nil)
 	}
 }
+
+func BenchmarkGet(b *testing.B) {
+
+	rand.Seed(902574329084211)
+
+	N := 1000 * 10
+	skip := NewSkiplist()
+	for i := 0; i < N; i++ {
+		skip.Upsert(strconv.Itoa(rand.Int()), nil)
+	}
+
+	skip.Upsert("85811", nil)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		skip.Get("85811")
+	}
+}
