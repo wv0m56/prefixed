@@ -1,5 +1,9 @@
 package skiplist
 
+import (
+	"bytes"
+)
+
 const maxHeight = 32
 
 // An Element is a KV node in the skiplist. Internally, it holds the height information
@@ -15,16 +19,13 @@ func (e *Element) Key() string {
 	return e.key
 }
 
-// Val returns the byte slice contained in the element.
-// Mutating the returned slice will mutate the slice inside the skiplist
-// without updating PayloadSize, so don't do it. This method is only provided
-// for space efficiency for large Val.
-func (e *Element) Val() []byte {
-	return e.val
+// ValReader returns a Reader to read from the byte slice contained in the element.
+func (e *Element) ValReader() *bytes.Reader {
+	return bytes.NewReader(e.val)
 }
 
-// ValCopy is just like Val except mutating the returned slice will not
-// mutate the slice inside the skiplist.
+// ValCopy returns a copy of the byte slice contained in the element.
+// Mutating the reutrned slice will not mutate the slice inside the skiplist.
 func (e *Element) ValCopy() []byte {
 	if e.val != nil {
 		b := make([]byte, len(e.val))
