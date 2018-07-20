@@ -74,12 +74,21 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 	s.len++
 }
 
+// Get finds an Element by key. Returns nil if not found.
+func (s *Skiplist) Get(key string) *Element {
+	_, it := s.search(key)
+	if it.key == key {
+		return it
+	}
+	return nil
+}
+
 func (s *Skiplist) searchAndUpsert(e *Element) {
-	left, iter := s.search(e)
+	left, iter := s.search(e.key)
 	s.insert(left, e, iter)
 }
 
-func (s *Skiplist) search(e *Element) (left []*Element, iter *Element) {
+func (s *Skiplist) search(key string) (left []*Element, iter *Element) {
 	left = make([]*Element, maxHeight)
 
 	for h := maxHeight - 1; h >= 0; h-- { // level descending loop
@@ -96,7 +105,7 @@ func (s *Skiplist) search(e *Element) (left []*Element, iter *Element) {
 
 		for { // forward loop
 
-			if iter == nil || e.key <= iter.key {
+			if iter == nil || key <= iter.key {
 				break // break the forward loop and go down a level
 
 			} else {
@@ -168,11 +177,8 @@ func (s *Skiplist) replace(left []*Element, e, right *Element) {
 
 func (s *Skiplist) takeNextsFromLeftAtIndex(i int, left []*Element, e *Element) {
 	if left[i] != nil {
-
 		e.nexts[i] = left[i].nexts[i]
-
 	} else {
-
 		e.nexts[i] = s.front[i]
 	}
 }

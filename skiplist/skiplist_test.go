@@ -117,6 +117,12 @@ func TestInsertsInternal(t *testing.T) {
 		strs2 = append(strs2, v)
 	}
 	assert.Equal(t, appended, strings.Join(strs2, ""))
+
+	// get
+	assert.Nil(t, skip.Get("nothing here"))
+	it := skip.Get("python")
+	assert.NotNil(t, it)
+	assert.Equal(t, "python", it.Key())
 }
 
 func BenchmarkInserts(b *testing.B) {
