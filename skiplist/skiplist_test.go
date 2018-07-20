@@ -118,11 +118,35 @@ func TestInsertsInternal(t *testing.T) {
 	}
 	assert.Equal(t, appended, strings.Join(strs2, ""))
 
-	// get
-	assert.Nil(t, skip.Get("nothing here"))
+	// Get
+	assert.Nil(t, skip.Get("no such key"))
 	it := skip.Get("python")
 	assert.NotNil(t, it)
 	assert.Equal(t, "python", it.Key())
+
+	// GetByPrefix
+	skip.Upsert("cartoon", nil)
+	skip.Upsert("carnival", nil)
+	skip.Upsert("carnivore", nil)
+	skip.Upsert("caravan", nil)
+	skip.Upsert("caricature", nil)
+	skip.Upsert("cargo", nil)
+
+	es := skip.GetByPrefix("car")
+
+	assert.Equal(t, 7, len(es))
+	assert.Equal(t, "car", es[0].Key())
+	assert.Equal(t, "caravan", es[1].Key())
+	assert.Equal(t, "cargo", es[2].Key())
+	assert.Equal(t, "caricature", es[3].Key())
+	assert.Equal(t, "carnival", es[4].Key())
+	assert.Equal(t, "carnivore", es[5].Key())
+	assert.Equal(t, "cartoon", es[6].Key())
+
+	es = skip.GetByPrefix("no such key")
+	assert.Nil(t, es)
+	es = skip.GetByPrefix("{{{{{{{{}@#")
+	assert.Equal(t, 1, len(es))
 }
 
 func BenchmarkInserts(b *testing.B) {

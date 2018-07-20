@@ -1,6 +1,7 @@
 package skiplist
 
 import (
+	"strings"
 	"sync"
 )
 
@@ -83,6 +84,26 @@ func (s *Skiplist) Get(key string) *Element {
 		return it
 	}
 	return nil
+}
+
+// GetByPrefix returns a slice of Elements whose keys are prefixed by p.
+// It returns nil if no such thing is found.
+func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, it := s.search(p)
+	if it.key != p {
+		return
+	}
+
+	for ; strings.HasPrefix(it.key, p); it = it.Next() {
+		es = append(es, it)
+		if it.Next() == nil {
+			return
+		}
+	}
+	return
 }
 
 func (s *Skiplist) searchAndUpsert(e *Element) {
