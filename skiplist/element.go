@@ -48,7 +48,7 @@ func newElem(key string, val []byte) *Element {
 
 func addHeight() int {
 	var n int
-	for n = 0; n < maxHeight; n++ {
+	for n = 0; n < maxHeight-1; n++ {
 		if !flipCoin() {
 			break
 		}
