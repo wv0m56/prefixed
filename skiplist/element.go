@@ -25,7 +25,7 @@ func (e *Element) ValReader() *bytes.Reader {
 }
 
 // ValCopy returns a copy of the byte slice contained in the element.
-// Mutating the reutrned slice will not mutate the slice inside the skiplist.
+// Mutating the returned slice will not mutate the slice inside the skiplist.
 func (e *Element) ValCopy() []byte {
 	if e.val != nil {
 		b := make([]byte, len(e.val))

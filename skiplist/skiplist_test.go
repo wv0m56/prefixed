@@ -147,6 +147,25 @@ func TestInsertsInternal(t *testing.T) {
 	assert.Equal(t, 1, len(es))
 	es = skip.GetByPrefix("carni")
 	assert.Equal(t, 2, len(es))
+
+	// Del and DelByPrefix
+	skip.Init()
+	skip.Upsert("park", []byte("park"))
+	skip.Upsert("animal", []byte("animal"))
+	skip.Upsert("moon", []byte("moon"))
+	skip.Upsert("noon", []byte("noon"))
+	skip.Upsert("lock", []byte("lock"))
+	skip.Upsert("low", []byte("low"))
+	skip.Upsert("lonely", []byte("lonely"))
+	skip.Upsert("loop", []byte("loop"))
+	assert.Equal(t, int64(8), skip.Len())
+	assert.Equal(t, int64(35), skip.PayloadSize())
+	skip.Del("animal")
+	assert.Equal(t, int64(7), skip.Len())
+	assert.Equal(t, int64(35-6), skip.PayloadSize())
+	skip.DelByPrefix("lo")
+	assert.Equal(t, int64(3), skip.Len())
+	assert.Equal(t, int64(35-6-17), skip.PayloadSize())
 }
 
 func BenchmarkInserts(b *testing.B) {
@@ -196,5 +215,22 @@ func BenchmarkGetByPrefix(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = skip.GetByPrefix("99")
+	}
+}
+
+func BenchmarkDel(b *testing.B) {
+
+	rand.Seed(104467541040234)
+
+	N := 1000 * 10
+	skip := NewSkiplist()
+	for i := 0; i < N; i++ {
+		skip.Upsert(strconv.Itoa(rand.Int()), nil)
+	}
+	skip.Upsert("8787128", nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		skip.Del("8787128")
 	}
 }

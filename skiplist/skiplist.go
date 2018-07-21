@@ -4,7 +4,8 @@ import (
 	"strings"
 )
 
-// Skiplist implements a skip list.
+// Skiplist implements a skip list. It is not thread safe and should be protected
+// by RWMutex when used concurrently.
 type Skiplist struct {
 	front            []*Element
 	len, payloadSize int64
@@ -21,6 +22,7 @@ func NewSkiplist() *Skiplist {
 func (s *Skiplist) Init() {
 	s.front = make([]*Element, maxHeight)
 	s.len = 0
+	s.payloadSize = 0
 }
 
 // Len returns the number of elements inside the skiplist.
@@ -50,10 +52,7 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 
 	if s.len == 0 {
 
-		for i := 0; i < len(e.nexts); i++ {
-
-			s.front[i] = e // e.nexts implied from zero vals
-		}
+		s.insert(s.front, e, nil)
 
 	} else {
 
@@ -90,12 +89,34 @@ func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
 
 // Del deletes the element refered by key.
 func (s *Skiplist) Del(key string) {
-	//
+
+	left, it := s.search(key)
+	if it != nil && key == it.key {
+		s.del(left, it)
+	}
+	return
 }
 
 // DelByPrefix deletes elements with keys which have prefix p.
 func (s *Skiplist) DelByPrefix(p string) {
-	//
+
+	left, it := s.search(p)
+	for ; strings.HasPrefix(it.key, p); it = it.Next() {
+		s.del(left, it)
+		if it.Next() == nil {
+			return
+		}
+	}
+	return
+}
+
+func (s *Skiplist) del(left []*Element, e *Element) {
+
+	for i := 0; i < len(e.nexts); i++ {
+		s.reassignLeftAtIndex(i, left, e.nexts[i])
+	}
+	s.payloadSize -= int64(len(e.val))
+	s.len--
 }
 
 func (s *Skiplist) searchAndUpsert(e *Element) {
