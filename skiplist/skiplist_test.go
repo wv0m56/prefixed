@@ -15,6 +15,10 @@ import (
 func TestInsertsInternal(t *testing.T) {
 
 	SetRandSource(rand.NewSource(53535353))
+
+	assert.Panics(t, func() { NewSkiplist(1) })
+	assert.Panics(t, func() { NewSkiplist(65) })
+
 	skip := NewSkiplist(32)
 
 	// "tokyo"
