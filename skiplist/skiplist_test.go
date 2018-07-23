@@ -1,6 +1,7 @@
 package skiplist
 
 import (
+	"math"
 	"math/rand"
 	"sort"
 	"strconv"
@@ -14,7 +15,7 @@ import (
 func TestInsertsInternal(t *testing.T) {
 
 	SetRandSource(rand.NewSource(53535353))
-	skip := NewSkiplist()
+	skip := NewSkiplist(32)
 
 	// "tokyo"
 	skip.Upsert("tokyo", nil)
@@ -25,7 +26,7 @@ func TestInsertsInternal(t *testing.T) {
 	heightOfTokyo := 2
 	assert.Equal(t, heightOfTokyo, len(first.nexts))
 
-	for i := 0; i < maxHeight; i++ {
+	for i := 0; i < skip.maxHeight; i++ {
 
 		if i < heightOfTokyo {
 
@@ -43,7 +44,7 @@ func TestInsertsInternal(t *testing.T) {
 	assert.Equal(t, 2, int(skip.Len()))
 	first = skip.First()
 	assert.Equal(t, "tokyo", first.Key())
-	for i := 0; i < maxHeight; i++ {
+	for i := 0; i < skip.maxHeight; i++ {
 
 		if i < heightOfTokyo {
 
@@ -80,7 +81,7 @@ func TestInsertsInternal(t *testing.T) {
 	assert.Equal(t, 17, int(skip.PayloadSize()))
 
 	// init
-	skip.Init()
+	skip.Init(32)
 	assert.Nil(t, skip.First())
 
 	// insert lots
@@ -149,7 +150,7 @@ func TestInsertsInternal(t *testing.T) {
 	assert.Equal(t, 2, len(es))
 
 	// Del and DelByPrefix
-	skip.Init()
+	skip.Init(32)
 	skip.Upsert("park", []byte("park"))
 	skip.Upsert("animal", []byte("animal"))
 	skip.Upsert("moon", []byte("moon"))
@@ -173,7 +174,7 @@ func BenchmarkInserts(b *testing.B) {
 	rand.Seed(42394084908978634)
 
 	N := 1000 * 10
-	skip := NewSkiplist()
+	skip := NewSkiplist(int(math.Floor(math.Log2(float64(N / 2)))))
 	for i := 0; i < N; i++ {
 		skip.Upsert(strconv.Itoa(rand.Int()), nil)
 	}
@@ -187,10 +188,10 @@ func BenchmarkInserts(b *testing.B) {
 
 func BenchmarkGet(b *testing.B) {
 
-	rand.Seed(902574329084211)
+	rand.Seed(902574429084211)
 
 	N := 1000 * 10
-	skip := NewSkiplist()
+	skip := NewSkiplist(int(math.Floor(math.Log2(float64(N / 2)))))
 	for i := 0; i < N; i++ {
 		skip.Upsert(strconv.Itoa(rand.Int()), nil)
 	}
@@ -207,7 +208,7 @@ func BenchmarkGetByPrefix(b *testing.B) {
 	rand.Seed(14242398490234)
 
 	N := 1000 * 10
-	skip := NewSkiplist()
+	skip := NewSkiplist(int(math.Floor(math.Log2(float64(N / 2)))))
 	for i := 0; i < N; i++ {
 		skip.Upsert(strconv.Itoa(rand.Int()), nil)
 	}
@@ -223,7 +224,7 @@ func BenchmarkDel(b *testing.B) {
 	rand.Seed(104467541040234)
 
 	N := 1000 * 10
-	skip := NewSkiplist()
+	skip := NewSkiplist(int(math.Floor(math.Log2(float64(N / 2)))))
 	for i := 0; i < N; i++ {
 		skip.Upsert(strconv.Itoa(rand.Int()), nil)
 	}

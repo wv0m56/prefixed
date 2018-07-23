@@ -9,20 +9,29 @@ import (
 type Skiplist struct {
 	front            []*Element
 	len, payloadSize int64
+	maxHeight        int
 }
 
-// NewSkiplist returns Skiplist with a height of 32.
-func NewSkiplist() *Skiplist {
+// NewSkiplist returns Skiplist with a height of maxHeight. maxHeight must be
+// between 2 and 64 (inclusive), otherwise it panics. A reasonable number
+// is log2(N/2), where N is the expected number of elements in the skiplist.
+func NewSkiplist(maxHeight int) *Skiplist {
 	s := &Skiplist{}
-	s.Init()
+	s.Init(maxHeight)
 	return s
 }
 
 // Init must be called on a skiplist created without calling NewSkiplist().
-func (s *Skiplist) Init() {
+// It empties the skiplist.
+func (s *Skiplist) Init(maxHeight int) {
 	s.front = make([]*Element, maxHeight)
 	s.len = 0
 	s.payloadSize = 0
+	if !(maxHeight < 2 || maxHeight >= 64) {
+		s.maxHeight = maxHeight
+	} else {
+		panic(`skiplist height must be between 2 and 64`)
+	}
 }
 
 // Len returns the number of elements inside the skiplist.
@@ -48,7 +57,7 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 	if key == "" {
 		return
 	}
-	e := newElem(key, val)
+	e := newElem(key, val, s.maxHeight)
 
 	if s.len == 0 {
 
@@ -87,7 +96,9 @@ func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
 	return
 }
 
-// Del deletes the element refered by key.
+// Del deletes the element refered by key. It only removes all references to
+// underlying *Element. As long as another part of the program is holding the
+// deleted *Element, it will not be garbage collected.
 func (s *Skiplist) Del(key string) {
 
 	left, it := s.search(key)
@@ -125,11 +136,11 @@ func (s *Skiplist) searchAndUpsert(e *Element) {
 }
 
 func (s *Skiplist) search(key string) (left []*Element, iter *Element) {
-	left = make([]*Element, maxHeight)
+	left = make([]*Element, s.maxHeight)
 
-	for h := maxHeight - 1; h >= 0; h-- { // level descending loop
+	for h := s.maxHeight - 1; h >= 0; h-- { // level descending loop
 
-		if h == maxHeight-1 || left[h+1] == nil {
+		if h == s.maxHeight-1 || left[h+1] == nil {
 
 			iter = s.front[h]
 

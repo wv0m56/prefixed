@@ -4,11 +4,9 @@ import (
 	"bytes"
 )
 
-const maxHeight = 32
-
 // An Element is a KV node in the skiplist. Internally, it holds the height information
 // determined by a series of coin flips and pointers to the next element at each level
-// up to its height.
+// up to its height. Once created, an element's key and value are immutable.
 type Element struct {
 	key   string
 	val   []byte
@@ -40,16 +38,16 @@ func (e *Element) Next() *Element {
 	return e.nexts[0]
 }
 
-func newElem(key string, val []byte) *Element {
+func newElem(key string, val []byte, maxHeight int) *Element {
 	e := &Element{}
-	lvl := 1 + addHeight()
+	lvl := 1 + addHeight(maxHeight)
 	e.key = key
 	e.val = val
 	e.nexts = make([]*Element, lvl)
 	return e
 }
 
-func addHeight() int {
+func addHeight(maxHeight int) int {
 	var n int
 	for n = 0; n < maxHeight-1; n++ {
 		if !flipCoin() {
