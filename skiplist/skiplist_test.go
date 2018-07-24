@@ -122,9 +122,12 @@ func TestInsertsInternal(t *testing.T) {
 	assert.Equal(t, appended, strings.Join(strs2, ""))
 
 	// Get
-	assert.Nil(t, skip.Get("no such key"))
-	it := skip.Get("python")
+	e, ok := skip.Get("no such key")
+	assert.Nil(t, e)
+	assert.False(t, ok)
+	it, ok := skip.Get("python")
 	assert.NotNil(t, it)
+	assert.True(t, ok)
 	assert.Equal(t, "python", it.Key())
 
 	// GetByPrefix

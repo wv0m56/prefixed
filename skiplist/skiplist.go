@@ -30,7 +30,7 @@ func (s *Skiplist) Init(maxHeight int) {
 	if !(maxHeight < 2 || maxHeight >= 64) {
 		s.maxHeight = maxHeight
 	} else {
-		panic(`skiplist height must be between 2 and 64`)
+		panic(`skiplist maximum height must be between 2 and 64`)
 	}
 }
 
@@ -71,14 +71,15 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 	s.len++
 }
 
-// Get finds an Element by key. Returns nil if not found.
-func (s *Skiplist) Get(key string) *Element {
+// Get finds an Element by key according to the comma-ok idiom.
+// Returns a non-nil *Element and true fi key is found. Else returns nil, false.
+func (s *Skiplist) Get(key string) (*Element, bool) {
 
 	_, it := s.search(key)
 	if it.key == key {
-		return it
+		return it, true
 	}
-	return nil
+	return nil, false
 }
 
 // GetByPrefix returns a slice of Elements whose keys are prefixed by p.
