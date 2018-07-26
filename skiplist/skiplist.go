@@ -72,11 +72,11 @@ func (s *Skiplist) Upsert(key string, val []byte) {
 }
 
 // Get finds an Element by key according to the comma-ok idiom.
-// Returns a non-nil *Element and true fi key is found. Else returns nil, false.
+// Returns a non-nil *Element and true if key is found. Else returns nil, false.
 func (s *Skiplist) Get(key string) (*Element, bool) {
 
 	_, it := s.search(key)
-	if it.key == key {
+	if it != nil && it.key == key {
 		return it, true
 	}
 	return nil, false
