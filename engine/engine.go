@@ -13,15 +13,15 @@ import (
 // Engine wraps a skiplist data structure with all the goodies
 // associated with caching (TTL, cache-filling mechanism, etc).
 type Engine struct {
-	s *skiplist.Skiplist
 	sync.RWMutex
+	s      *skiplist.Skiplist
 	fillMu map[string]sync.RWMutex
 	// c      client.ClientPlugin
 	// o      origin.OriginPlugin
 }
 
 // NewEngine creates a new cache engine with a skiplist as the
-// underlying data structure. Use expectedLen <= 0 for default.
+// underlying data structure. Use expectedLen <= 0 for default (10 million).
 // NewEngine panics if expectedLen is positive and is less than 100.
 func NewEngine(expectedLen int) *Engine {
 
@@ -37,8 +37,8 @@ func NewEngine(expectedLen int) *Engine {
 	}
 
 	return &Engine{
-		skiplist.NewSkiplist(int(math.Floor(n))),
 		sync.RWMutex{},
+		skiplist.NewSkiplist(int(math.Floor(n))),
 		make(map[string]sync.RWMutex, 128),
 	}
 }
@@ -62,33 +62,37 @@ func (e *Engine) GetCopy(key string) ([]byte, error) {
 func (e *Engine) get(key string) (*bytes.Reader, error) {
 	e.RLock()
 
-	if el, ok := e.s.Get(key); ok {
+	if el, ok := e.s.Get(key); ok && el != nil {
 
 		e.RUnlock()
 		return el.ValReader(), nil
 	}
 
 	e.RUnlock()
-	c, err := e.Load(key)
-	if err != nil {
+	done, errCh := e.CacheFill(key)
+
+	select {
+
+	case <-done:
+		if el, ok := e.s.Get(key); ok && el != nil {
+			return el.ValReader(), nil
+		}
+		return nil, errors.New("value not found and cache-fill failed")
+
+	case err := <-errCh:
 		return nil, err
 	}
-	<-c
-	if el, ok := e.s.Get(key); ok {
-		return el.ValReader(), nil
-	}
-
-	return nil, errors.New("value not found and cache-fill failed")
 }
 
 // GetByPrefix gets all the values reader associated with keys having prefix p.
 // GetByPrefix does not trigger a cache fill upon cache miss. Returns nil if no
 // value is associated with keys having prefix p.
 func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
-	e.RLock()
 
+	e.RLock()
 	els := e.s.GetByPrefix(p)
 	e.RUnlock()
+
 	if els == nil {
 		return nil
 	}
@@ -103,10 +107,11 @@ func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
 // GetCopiesByPrefix is like GetByPrefix except it returns a slice of copies of
 // []byte representing the values.
 func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
-	e.RLock()
-	defer e.RUnlock()
 
+	e.RLock()
 	els := e.s.GetByPrefix(p)
+	e.RUnlock()
+
 	if els == nil {
 		return nil
 	}
@@ -125,9 +130,9 @@ func (e *Engine) RowWriter(key string) *RowWriter {
 	return &RowWriter{key, &bytes.Buffer{}, e}
 }
 
-// Load fetches values from origin and upserts them into the engine. The returned
-// channel is used to signal when the keys are done cache-filling.
-func (e *Engine) Load(keys ...string) (<-chan struct{}, error) {
+// CacheFill fetches values from origin and upserts them into the engine. The
+// returned channel is used to signal when the keys are done cache-filling.
+func (e *Engine) CacheFill(keys ...string) (done <-chan struct{}, errCh <-chan error) {
 
 	// TODO TODO TODO TODO
 	// dumb placeholder for simple test

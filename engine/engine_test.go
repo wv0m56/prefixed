@@ -22,4 +22,11 @@ func TestSimpleIO(t *testing.T) {
 	b, err := ioutil.ReadAll(valR)
 	assert.Nil(t, err)
 	assert.Equal(t, "wet", string(b))
+	b, err = e.GetCopy("water")
+	assert.Nil(t, err)
+	assert.Equal(t, "wet", string(b))
+	b[1]++
+	b, err = e.GetCopy("water")
+	assert.Nil(t, err)
+	assert.Equal(t, "wet", string(b))
 }
