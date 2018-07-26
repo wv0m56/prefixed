@@ -3,6 +3,8 @@ package engine
 import (
 	"bytes"
 	"errors"
+	"io/ioutil"
+	"math"
 	"sync"
 
 	"github.com/wv0m56/prefixed/skiplist"
@@ -18,9 +20,24 @@ type Engine struct {
 	// o      origin.OriginPlugin
 }
 
-func NewEngine() *Engine {
+// NewEngine creates a new cache engine with a skiplist as the
+// underlying data structure. Use expectedLen <= 0 for default.
+// NewEngine panics if expectedLen is positive and is less than 100.
+func NewEngine(expectedLen int) *Engine {
+
+	if expectedLen > 0 && expectedLen < 100 {
+		panic("expectedLen must be >= 100")
+	}
+
+	var n float64
+	if expectedLen <= 0 {
+		n = float64(10 * 1000 * 1000)
+	} else {
+		n = math.Log2(float64(expectedLen) / 2)
+	}
+
 	return &Engine{
-		skiplist.NewSkiplist(24),
+		skiplist.NewSkiplist(int(math.Floor(n))),
 		sync.RWMutex{},
 		make(map[string]sync.RWMutex, 128),
 	}
@@ -28,39 +45,27 @@ func NewEngine() *Engine {
 
 // Get returns a *bytes.Reader with the value associated with key as the
 // underlying byte slice. Get triggers a cache fill upon cache miss.
-func (e *Engine) Get(key string) (*bytes.Reader, error) {
-
-	e.RLock()
-
-	if el, ok := e.s.Get(key); ok {
-
-		e.RUnlock()
-		return el.ValReader(), nil
-	}
-
-	e.RUnlock()
-	c, err := e.Load(key)
-	if err != nil {
-		return nil, err
-	}
-	<-c
-	if el, ok := e.s.Get(key); ok {
-		return el.ValReader(), nil
-	}
-
-	return nil, errors.New("value not found and cache-fill failed")
+func (e *Engine) Get(key string) (r *bytes.Reader, err error) {
+	return e.get(key)
 }
 
 // GetCopy copies the byte slice associated with key into the returned []byte.
 // GetCopy triggers a cache fill upon cache miss.
 func (e *Engine) GetCopy(key string) ([]byte, error) {
+	r, err := e.get(key)
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(r)
+}
 
+func (e *Engine) get(key string) (*bytes.Reader, error) {
 	e.RLock()
 
 	if el, ok := e.s.Get(key); ok {
 
 		e.RUnlock()
-		return el.ValCopy(), nil
+		return el.ValReader(), nil
 	}
 
 	e.RUnlock()
@@ -70,7 +75,7 @@ func (e *Engine) GetCopy(key string) ([]byte, error) {
 	}
 	<-c
 	if el, ok := e.s.Get(key); ok {
-		return el.ValCopy(), nil
+		return el.ValReader(), nil
 	}
 
 	return nil, errors.New("value not found and cache-fill failed")

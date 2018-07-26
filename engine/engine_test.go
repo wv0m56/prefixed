@@ -9,7 +9,7 @@ import (
 
 func TestSimpleIO(t *testing.T) {
 
-	e := NewEngine()
+	e := NewEngine(1000)
 	rw := e.RowWriter("water")
 	rw.Write([]byte("wet"))
 	valR, err := e.Get("water")
