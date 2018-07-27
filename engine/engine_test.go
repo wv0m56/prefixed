@@ -53,4 +53,6 @@ func TestPrefix(t *testing.T) {
 	rw.Commit()
 	rs = e.GetByPrefix("water")
 	assert.Equal(t, 2, len(rs))
+	b := e.GetCopiesByPrefix("water")
+	assert.Equal(t, 2, len(b))
 }
