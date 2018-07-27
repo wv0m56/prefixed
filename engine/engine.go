@@ -136,6 +136,7 @@ func (e *Engine) CacheFill(keys ...string) (done <-chan struct{}, errCh <-chan e
 
 	// TODO TODO TODO TODO
 	// dumb placeholder for simple test
+	// don't forget to lock
 	c := make(chan struct{})
 	go func() {
 		c <- struct{}{}

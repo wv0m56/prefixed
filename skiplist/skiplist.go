@@ -88,11 +88,8 @@ func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
 
 	_, it := s.search(p)
 
-	for ; strings.HasPrefix(it.key, p); it = it.Next() {
+	for ; it != nil && strings.HasPrefix(it.key, p); it = it.Next() {
 		es = append(es, it)
-		if it.Next() == nil {
-			return
-		}
 	}
 	return
 }
