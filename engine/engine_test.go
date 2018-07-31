@@ -2,6 +2,7 @@ package engine
 
 import (
 	"io/ioutil"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,4 +64,35 @@ func TestPrefix(t *testing.T) {
 	assert.Equal(t, 2, len(rs))
 	b := e.GetCopiesByPrefix("water")
 	assert.Equal(t, 2, len(b))
+}
+
+func TestHotKey(t *testing.T) {
+
+	e, err := NewEngine(1025, &fake.Impl{})
+	assert.Nil(t, err)
+	wg := sync.WaitGroup{}
+	N := 10000
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		go func() {
+			r, err := e.Get("hot key")
+			assert.Nil(t, err)
+			b, err2 := ioutil.ReadAll(r)
+			assert.Nil(t, err2)
+			assert.Equal(t, "hot key", string(b))
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		go func() {
+			r, err := e.Get("error")
+			assert.NotNil(t, err)
+			assert.Nil(t, r)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }

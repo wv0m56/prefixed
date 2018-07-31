@@ -196,6 +196,7 @@ func blockUntilFilled(e *Engine, key string) (*bytes.Reader, error) {
 	e.fillCond[key].Wait() // try without loop
 
 	if c := e.fillCond[key]; c.err != nil || c.buf == nil {
+		e.Unlock()
 		return nil, errors.New("cache-fill failed")
 	}
 

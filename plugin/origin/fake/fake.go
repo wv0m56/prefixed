@@ -1,3 +1,4 @@
+// Package fake is a fake implementation of the Origin plugin for tests.
 package fake
 
 import (
