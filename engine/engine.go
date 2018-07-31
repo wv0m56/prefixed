@@ -191,23 +191,29 @@ type condition struct {
 	err   error
 }
 
-func blockUntilFilled(e *Engine, key string) (*bytes.Reader, error) {
+func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 
 	e.fillCond[key].Wait() // try without loop
 
 	if c := e.fillCond[key]; c.err != nil || c.buf == nil {
-		e.Unlock()
-		return nil, errors.New("cache-fill failed")
+		err = errors.New("cache-fill failed")
+	}
+
+	if buf := e.fillCond[key].buf; buf != nil {
+		r = bytes.NewReader(e.fillCond[key].buf.Bytes())
 	}
 
 	e.fillCond[key].count--
-	b := e.fillCond[key].buf.Bytes()
 	if e.fillCond[key].count == 0 {
 		delete(e.fillCond, key)
 	}
+
 	e.Unlock()
 
-	return bytes.NewReader(b), nil
+	if err == nil {
+	}
+
+	return
 }
 
 // SetTTL sets TTL values of the given keys.
