@@ -1,6 +1,8 @@
 package skiplist
 
 import (
+	"bytes"
+	"io/ioutil"
 	"math"
 	"math/rand"
 	"sort"
@@ -174,6 +176,20 @@ func TestInsertsInternal(t *testing.T) {
 	skip.DelByPrefix("lo")
 	assert.Equal(t, int64(3), skip.Len())
 	assert.Equal(t, int64(35-6-17), skip.PayloadSize())
+
+	// Val
+	e, ok = skip.Get("moon")
+	assert.True(t, ok)
+	r := e.ValReader()
+	br, _ := ioutil.ReadAll(r)
+	bc := e.ValCopy()
+	assert.True(t, bytes.Equal(bc, br))
+	assert.Equal(t, "moon", string(bc))
+	bc[0] = 0 // mutating copy should not mutate val inside skip
+	e, _ = skip.Get("moon")
+	r = e.ValReader()
+	br, _ = ioutil.ReadAll(r)
+	assert.Equal(t, "moon", string(br))
 }
 
 func BenchmarkInserts(b *testing.B) {
