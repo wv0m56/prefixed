@@ -210,9 +210,6 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 
 	e.Unlock()
 
-	if err == nil {
-	}
-
 	return
 }
 
