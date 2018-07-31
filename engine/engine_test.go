@@ -5,26 +5,28 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wv0m56/prefixed/plugin/origin/fake"
 )
 
 func TestSimpleIO(t *testing.T) {
 
-	e := NewEngine(1000)
-	valR, err := e.Get("water")
-	assert.NotNil(t, err)
-	assert.Nil(t, valR)
+	e, err := NewEngine(1025, &fake.Impl{})
+	assert.Nil(t, err)
 	rw := e.RowWriter("water")
 	n, err := rw.Write([]byte("wet"))
 	assert.Nil(t, err)
 	assert.Equal(t, 3, n)
-	valR, err = e.Get("water")
-	assert.NotNil(t, err)
-	assert.Nil(t, valR)
+	valR, err := e.Get("water") // now trigger a cache fill since not yet committed
+	assert.Nil(t, err)
+	b, err := ioutil.ReadAll(valR)
+	assert.Nil(t, err)
+	assert.Equal(t, "water", string(b))
+	assert.Nil(t, err)
 	rw.Commit()
 	valR, err = e.Get("water")
 	assert.Nil(t, err)
 	assert.NotNil(t, valR)
-	b, err := ioutil.ReadAll(valR)
+	b, err = ioutil.ReadAll(valR)
 	assert.Nil(t, err)
 	assert.Equal(t, "wet", string(b))
 	b, err = e.GetCopy("water")
@@ -34,11 +36,17 @@ func TestSimpleIO(t *testing.T) {
 	b, err = e.GetCopy("water")
 	assert.Nil(t, err)
 	assert.Equal(t, "wet", string(b))
+
+	// trigger error, see fake.fakeReadCloser
+	valR, err = e.Get("error")
+	assert.NotNil(t, err)
+	assert.Nil(t, valR)
 }
 
 func TestPrefix(t *testing.T) {
 
-	e := NewEngine(1000)
+	e, err := NewEngine(1025, &fake.Impl{})
+	assert.Nil(t, err)
 	rw := e.RowWriter("water")
 	n, err := rw.Write([]byte("wet"))
 	assert.Nil(t, err)

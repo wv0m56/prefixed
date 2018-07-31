@@ -3,10 +3,12 @@ package engine
 import (
 	"bytes"
 	"errors"
+	"io"
 	"io/ioutil"
 	"math"
 	"sync"
 
+	"github.com/wv0m56/prefixed/plugin/origin"
 	"github.com/wv0m56/prefixed/skiplist"
 )
 
@@ -14,19 +16,19 @@ import (
 // associated with caching (TTL, cache-filling mechanism, etc).
 type Engine struct {
 	sync.RWMutex
-	s      *skiplist.Skiplist
-	fillMu map[string]sync.RWMutex
+	s        *skiplist.Skiplist
+	fillCond map[string]*condition
+	o        origin.Origin
 	// c      client.ClientPlugin
-	// o      origin.OriginPlugin
 }
 
 // NewEngine creates a new cache engine with a skiplist as the
 // underlying data structure. Use expectedLen <= 0 for default (10 million).
-// NewEngine panics if expectedLen is positive and is less than 100.
-func NewEngine(expectedLen int) *Engine {
+// NewEngine panics if expectedLen is positive and is less than 1024 (pointless).
+func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 
-	if expectedLen > 0 && expectedLen < 100 {
-		panic("expectedLen must be >= 100")
+	if expectedLen > 0 && expectedLen < 1024 {
+		return nil, errors.New("non default expectedLen must be >= 1024")
 	}
 
 	var n float64
@@ -39,8 +41,9 @@ func NewEngine(expectedLen int) *Engine {
 	return &Engine{
 		sync.RWMutex{},
 		skiplist.NewSkiplist(int(math.Floor(n))),
-		make(map[string]sync.RWMutex, 128),
-	}
+		make(map[string]*condition),
+		o,
+	}, nil
 }
 
 // Get returns a *bytes.Reader with the value associated with key as the
@@ -60,28 +63,27 @@ func (e *Engine) GetCopy(key string) ([]byte, error) {
 }
 
 func (e *Engine) get(key string) (*bytes.Reader, error) {
-	e.RLock()
 
-	if el, ok := e.s.Get(key); ok && el != nil {
-
-		e.RUnlock()
-		return el.ValReader(), nil
+	r := e.tryget(key)
+	if r != nil { // cache hit
+		return r, nil
 	}
 
-	e.RUnlock()
-	done, errCh := e.CacheFill(key)
-
-	select {
-
-	case <-done:
-		if el, ok := e.s.Get(key); ok && el != nil {
-			return el.ValReader(), nil
-		}
-		return nil, errors.New("value not found and cache-fill failed")
-
-	case err := <-errCh:
+	// cache miss
+	r, err := e.CacheFill(key)
+	if err != nil {
 		return nil, err
 	}
+	return r, nil
+}
+
+func (e *Engine) tryget(key string) *bytes.Reader {
+	e.RLock()
+	defer e.RUnlock()
+	if el, ok := e.s.Get(key); ok && el != nil {
+		return el.ValReader()
+	}
+	return nil
 }
 
 // GetByPrefix gets all the values reader associated with keys having prefix p.
@@ -130,27 +132,90 @@ func (e *Engine) RowWriter(key string) *RowWriter {
 	return &RowWriter{key, &bytes.Buffer{}, e}
 }
 
-// CacheFill fetches values from origin and upserts them into the engine. The
+// CacheFill fetches value from origin and upserts it into the engine. The
 // returned channel is used to signal when the keys are done cache-filling.
-func (e *Engine) CacheFill(keys ...string) (done <-chan struct{}, errCh <-chan error) {
+func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 
-	// TODO TODO TODO TODO
-	// dumb placeholder for simple test
-	// don't forget to lock
-	c := make(chan struct{})
-	go func() {
-		c <- struct{}{}
-	}()
-	return c, nil
+	e.Lock()
+	if el, ok := e.s.Get(key); ok && el != nil {
+		e.Unlock()
+		return el.ValReader(), nil
+	}
+
+	// still locked
+	if cond, ok := e.fillCond[key]; ok && cond != nil {
+
+		cond.count++
+		return blockUntilFilled(e, key)
+
+	} else if ok && cond == nil {
+
+		// must never reach here
+		e.Unlock()
+		return nil, errors.New("nil condition during cache fill")
+
+	} else {
+
+		e.fillCond[key] = &condition{*sync.NewCond(e), 1, nil, nil}
+
+		go func() {
+			// fetch from remote and fill up buffer
+			rc := e.o.Fetch(key)
+			buf := &bytes.Buffer{}
+			_, err := io.Copy(buf, rc)
+			if err != nil {
+				rc.Close()
+				e.Lock()
+				e.fillCond[key].err = err
+				e.Unlock()
+				e.fillCond[key].Broadcast()
+				return
+			}
+
+			e.Lock()
+			e.fillCond[key].buf = buf
+			e.Unlock()
+			rw := &RowWriter{key, buf, e}
+			rw.Commit()
+			e.fillCond[key].Broadcast()
+		}()
+
+		return blockUntilFilled(e, key)
+	}
+}
+
+type condition struct {
+	sync.Cond
+	count int
+	buf   *bytes.Buffer
+	err   error
+}
+
+func blockUntilFilled(e *Engine, key string) (*bytes.Reader, error) {
+
+	e.fillCond[key].Wait() // try without loop
+
+	if c := e.fillCond[key]; c.err != nil || c.buf == nil {
+		return nil, errors.New("cache-fill failed")
+	}
+
+	e.fillCond[key].count--
+	b := e.fillCond[key].buf.Bytes()
+	if e.fillCond[key].count == 0 {
+		delete(e.fillCond, key)
+	}
+	e.Unlock()
+
+	return bytes.NewReader(b), nil
 }
 
 // SetTTL sets TTL values of the given keys.
-func (e *Engine) SetTTL(t ...TTLKV) {
+func (e *Engine) SetTTL(t ...TTL) {
 	//
 }
 
-// TTLKV is the data pair to be passed into SetTTL().
-type TTLKV struct {
+// TTL is the data pair to be passed into SetTTL().
+type TTL struct {
 	Key string
-	Val int
+	TTL int
 }
