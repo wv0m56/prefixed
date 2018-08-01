@@ -13,33 +13,26 @@ func TestSimpleIO(t *testing.T) {
 
 	e, err := NewEngine(1025, &fake.Impl{})
 	assert.Nil(t, err)
-	rw := e.RowWriter("water")
-	n, err := rw.Write([]byte("wet"))
 	assert.Nil(t, err)
-	assert.Equal(t, 3, n)
-	valR, err := e.Get("water") // now trigger a cache fill since not yet committed
+	valR, err := e.Get("water")
 	assert.Nil(t, err)
 	b, err := ioutil.ReadAll(valR)
 	assert.Nil(t, err)
 	assert.Equal(t, "water", string(b))
 	assert.Nil(t, err)
-	rw.Commit()
-	valR, err = e.Get("water")
-	assert.Nil(t, err)
-	assert.NotNil(t, valR)
-	b, err = ioutil.ReadAll(valR)
-	assert.Nil(t, err)
-	assert.Equal(t, "wet", string(b))
 	b, err = e.GetCopy("water")
 	assert.Nil(t, err)
-	assert.Equal(t, "wet", string(b))
+	assert.Equal(t, "water", string(b))
 	b[1]++
 	b, err = e.GetCopy("water")
 	assert.Nil(t, err)
-	assert.Equal(t, "wet", string(b))
+	assert.Equal(t, "water", string(b))
 
 	// trigger error, see fake.fakeReadCloser
 	valR, err = e.Get("error")
+	assert.NotNil(t, err)
+	assert.Nil(t, valR)
+	valR, err = e.Get("error") // make sure the row was not committed above
 	assert.NotNil(t, err)
 	assert.Nil(t, valR)
 }
@@ -48,22 +41,20 @@ func TestPrefix(t *testing.T) {
 
 	e, err := NewEngine(1025, &fake.Impl{})
 	assert.Nil(t, err)
-	rw := e.RowWriter("water")
-	n, err := rw.Write([]byte("wet"))
+	r1, err := e.CacheFill("water")
 	assert.Nil(t, err)
-	assert.Equal(t, 3, n)
-	rw.Commit()
-	rw = e.RowWriter("waterfall")
-	n, err = rw.Write([]byte("very wet"))
+	r2, err := e.CacheFill("waterfall")
 	assert.Nil(t, err)
-	assert.Equal(t, 8, n)
-	rs := e.GetByPrefix("water")
-	assert.Equal(t, 1, len(rs))
-	rw.Commit()
-	rs = e.GetByPrefix("water")
-	assert.Equal(t, 2, len(rs))
-	b := e.GetCopiesByPrefix("water")
-	assert.Equal(t, 2, len(b))
+	b, err := ioutil.ReadAll(r1)
+	assert.Nil(t, err)
+	assert.Equal(t, "water", string(b))
+	b, err = ioutil.ReadAll(r2)
+	assert.Nil(t, err)
+	assert.Equal(t, "waterfall", string(b))
+	rows := e.GetByPrefix("water")
+	assert.Equal(t, 2, len(rows))
+	bs := e.GetCopiesByPrefix("water")
+	assert.Equal(t, 2, len(bs))
 }
 
 func TestHotKey(t *testing.T) {
@@ -109,7 +100,7 @@ func BenchmarkHotKey(b *testing.B) {
 		wg.Add(N)
 		for j := 0; j < N; j++ {
 			go func() {
-				e.Get("hot key")
+				e.Get("hot key 2")
 				wg.Done()
 			}()
 		}
@@ -128,7 +119,7 @@ func BenchmarkErrorKey(b *testing.B) {
 		wg.Add(N)
 		for j := 0; j < N; j++ {
 			go func() {
-				e.Get("error")
+				e.Get("bench error")
 				wg.Done()
 			}()
 		}

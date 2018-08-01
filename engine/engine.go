@@ -125,15 +125,8 @@ func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 	return rs
 }
 
-// RowWriter returns an object that satisfies io.Writer interface. Calling Write()
-// on the returned object will write into a bytes buffer. Commit() will upsert
-// (key, value bytes) into e.
-func (e *Engine) RowWriter(key string) *RowWriter {
-	return &RowWriter{key, &bytes.Buffer{}, e}
-}
-
 // CacheFill fetches value from origin and upserts it into the engine. The
-// returned channel is used to signal when the keys are done cache-filling.
+// returned Reader yields the row's value after CacheFill if read from.
 func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 
 	e.Lock()
@@ -162,25 +155,31 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 
 			// fetch from remote and fill up buffer
 			rc := e.o.Fetch(key)
-			buf := &bytes.Buffer{}
-			_, err := io.Copy(buf, rc)
+			rw := &rowWriter{key, nil, e}
+
+			var err error
+			if rc != nil {
+				_, err = io.Copy(rw, rc)
+			} else {
+				err = errors.New("nil ReadCloser from Fetch")
+			}
 
 			if err != nil {
 
-				rc.Close()
+				if rc != nil {
+					_ = rc.Close()
+				}
 				e.Lock()
 				e.fillCond[key].err = err
-				e.Unlock()
 
 			} else {
 
 				e.Lock()
-				e.fillCond[key].buf = buf
-				e.Unlock()
+				rw.Commit()
+				e.fillCond[key].b = rw.b.Bytes()
 			}
 
-			rw := &RowWriter{key, buf, e}
-			rw.Commit()
+			e.Unlock()
 			e.fillCond[key].Broadcast()
 
 			return
@@ -193,20 +192,23 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 type condition struct {
 	sync.Cond
 	count int
-	buf   *bytes.Buffer
+	b     []byte
 	err   error
 }
 
 func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 
-	e.fillCond[key].Wait() // try without loop
-
-	if c := e.fillCond[key]; c.err != nil || c.buf == nil {
-		err = errors.New("cache-fill failed")
+	c := e.fillCond[key]
+	for c.b == nil && c.err == nil {
+		e.fillCond[key].Wait()
 	}
 
-	if buf := e.fillCond[key].buf; buf != nil {
-		r = bytes.NewReader(e.fillCond[key].buf.Bytes())
+	if c.err != nil {
+		err = c.err
+	}
+
+	if b := c.b; b != nil {
+		r = bytes.NewReader(e.fillCond[key].b)
 	}
 
 	e.fillCond[key].count--
@@ -228,4 +230,22 @@ func (e *Engine) SetTTL(t ...TTL) {
 type TTL struct {
 	Key string
 	TTL int
+}
+
+type rowWriter struct {
+	key string
+	b   *bytes.Buffer
+	e   *Engine
+}
+
+func (rw *rowWriter) Write(p []byte) (n int, err error) {
+	if rw.b == nil {
+		rw.b = bytes.NewBuffer(nil)
+	}
+	return rw.b.Write(p)
+}
+
+// no locking.
+func (rw *rowWriter) Commit() {
+	rw.e.s.Upsert(rw.key, rw.b.Bytes())
 }

@@ -53,8 +53,8 @@ func (_ *benchReadCloser) Close() error {
 }
 
 func (brc *benchReadCloser) Read(p []byte) (int, error) {
-	if brc.key == "error" {
-		return 0, errors.New("fake error")
+	if brc.key == "bench error" {
+		return 0, errors.New("fake bench error")
 	}
 	return brc.br.Read(p)
 }
