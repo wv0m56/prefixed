@@ -159,25 +159,31 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 		e.fillCond[key] = &condition{*sync.NewCond(e), 1, nil, nil}
 
 		go func() {
+
 			// fetch from remote and fill up buffer
 			rc := e.o.Fetch(key)
 			buf := &bytes.Buffer{}
 			_, err := io.Copy(buf, rc)
+
 			if err != nil {
+
 				rc.Close()
 				e.Lock()
 				e.fillCond[key].err = err
 				e.Unlock()
-				e.fillCond[key].Broadcast()
-				return
+
+			} else {
+
+				e.Lock()
+				e.fillCond[key].buf = buf
+				e.Unlock()
 			}
 
-			e.Lock()
-			e.fillCond[key].buf = buf
-			e.Unlock()
 			rw := &RowWriter{key, buf, e}
 			rw.Commit()
 			e.fillCond[key].Broadcast()
+
+			return
 		}()
 
 		return blockUntilFilled(e, key)

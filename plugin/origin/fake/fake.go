@@ -14,24 +14,47 @@ type Impl struct{}
 // Fetch fetches dummy data. "error" as key simulates a network error should
 // the returned io.ReadCloser is read. Else returns &bytes.Reader([]byte(key))
 // implementing a no-op Close() method with a 100ms delay.
-func (fo *Impl) Fetch(key string) io.ReadCloser {
-	return &fakeReadeCloser{bytes.NewReader([]byte(key)), key}
+func (_ *Impl) Fetch(key string) io.ReadCloser {
+	return &fakeReadCloser{bytes.NewReader([]byte(key)), key}
 }
 
-type fakeReadeCloser struct {
+type fakeReadCloser struct {
 	br  *bytes.Reader
 	key string
 }
 
-func (_ *fakeReadeCloser) Close() error {
+func (_ *fakeReadCloser) Close() error {
 	return nil
 }
 
-func (frc *fakeReadeCloser) Read(p []byte) (int, error) {
+func (frc *fakeReadCloser) Read(p []byte) (int, error) {
 	if frc.key == "error" {
 		Sleep(100 * Millisecond)
 		return 0, errors.New("fake error")
 	}
 	Sleep(100 * Millisecond)
 	return frc.br.Read(p)
+}
+
+type BenchImpl struct{}
+
+// No delay.
+func (_ *BenchImpl) Fetch(key string) io.ReadCloser {
+	return &benchReadCloser{bytes.NewReader([]byte(key)), key}
+}
+
+type benchReadCloser struct {
+	br  *bytes.Reader
+	key string
+}
+
+func (_ *benchReadCloser) Close() error {
+	return nil
+}
+
+func (brc *benchReadCloser) Read(p []byte) (int, error) {
+	if brc.key == "error" {
+		return 0, errors.New("fake error")
+	}
+	return brc.br.Read(p)
 }

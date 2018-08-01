@@ -96,3 +96,42 @@ func TestHotKey(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// Test how much time N concurrent calls to CacheFill spend resolving lock
+// contention, given 0 network delay.
+func BenchmarkHotKey(b *testing.B) {
+
+	N := 10000
+	e, _ := NewEngine(1025, &fake.BenchImpl{})
+
+	for i := 0; i < b.N; i++ {
+		wg := sync.WaitGroup{}
+		wg.Add(N)
+		for j := 0; j < N; j++ {
+			go func() {
+				e.Get("hot key")
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	}
+}
+
+// Similar to BenchmarkHotKey, except this time origin returns an error.
+func BenchmarkErrorKey(b *testing.B) {
+
+	N := 10000
+	e, _ := NewEngine(1025, &fake.BenchImpl{})
+
+	for i := 0; i < b.N; i++ {
+		wg := sync.WaitGroup{}
+		wg.Add(N)
+		for j := 0; j < N; j++ {
+			go func() {
+				e.Get("error")
+				wg.Done()
+			}()
+		}
+		wg.Wait()
+	}
+}
