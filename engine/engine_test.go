@@ -95,6 +95,7 @@ func BenchmarkHotKey(b *testing.B) {
 	N := 10000
 	e, _ := NewEngine(1025, &fake.BenchImpl{})
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		wg := sync.WaitGroup{}
 		wg.Add(N)
@@ -114,6 +115,7 @@ func BenchmarkErrorKey(b *testing.B) {
 	N := 10000
 	e, _ := NewEngine(1025, &fake.BenchImpl{})
 
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		wg := sync.WaitGroup{}
 		wg.Add(N)

@@ -221,7 +221,8 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 	return
 }
 
-// SetTTL sets TTL values of the given keys.
+// SetTTL sets TTL values of the given keys. On keys that don't exist, SetTTL is
+// a no-op.
 func (e *Engine) SetTTL(t ...TTL) {
 	//
 }
