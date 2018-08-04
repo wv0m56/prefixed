@@ -6,7 +6,7 @@ import (
 )
 
 // not cryptographically secure, secure one is slow
-var randSource = rand.NewSource((time.Now().UnixNano()/39-39)*39 + 222)
+var randSource = rand.NewSource(time.Now().UnixNano())
 
 // true=heads, false=tails
 func flipCoin() bool {

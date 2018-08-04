@@ -22,8 +22,9 @@ type Engine struct {
 	// c      client.ClientPlugin
 }
 
-// NewEngine creates a new cache engine with a skiplist as the
-// underlying data structure. Use expectedLen <= 0 for default (10 million).
+// NewEngine creates a new cache engine with a skiplist as the underlying data
+// structure. Use expectedLen <= 0 for default (10 million). It's better
+// to overestimate expectedLen than to underestimate it.
 // NewEngine panics if expectedLen is positive and is less than 1024 (pointless).
 func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 

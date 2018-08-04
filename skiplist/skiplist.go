@@ -200,7 +200,7 @@ func (s *Skiplist) replace(left []*Element, e, right *Element) {
 
 	for i := 0; i < max(len(e.nexts), len(right.nexts)); i++ {
 
-		if i < len(e.nexts) { // up to equal height, damn zero based index
+		if i < len(e.nexts) {
 
 			if i < len(right.nexts) {
 
