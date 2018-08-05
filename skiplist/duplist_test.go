@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDupList(t *testing.T) {
+func TestDuplist(t *testing.T) {
 
 	d := NewDuplist(24)
 	assert.Nil(t, d.First())

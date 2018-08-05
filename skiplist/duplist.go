@@ -1,37 +1,37 @@
 package skiplist
 
-// DupList is a modified skiplist implementation allowing duplicate int64
+// Duplist is a modified skiplist implementation allowing duplicate int64
 // keys to exist inside the same list. Elements with duplicate keys are
-// adjacent inside DupList, with a later insert placed left of earlier ones.
+// adjacent inside Duplist, with a later insert placed left of earlier ones.
 // Elements with different keys are sorted in ascending order as usual.
-// DupList is required for implementing TTL and cache eviction functionality.
-// DupList does not allow random get or delete and instead only allows
+// Duplist is required for implementing TTL and cache eviction functionality.
+// Duplist does not allow random get or delete and instead only allows
 // get or delete on the first element of the list.
-type DupList struct {
+type Duplist struct {
 	front     []*DupElement
 	maxHeight int
 }
 
-func NewDuplist(maxHeight int) *DupList {
-	d := &DupList{}
+func NewDuplist(maxHeight int) *Duplist {
+	d := &Duplist{}
 	d.Init(maxHeight)
 	return d
 }
 
-func (d *DupList) Init(maxHeight int) {
+func (d *Duplist) Init(maxHeight int) {
 	d.front = make([]*DupElement, maxHeight)
 	if !(maxHeight < 2 || maxHeight >= 64) {
 		d.maxHeight = maxHeight
 	} else {
-		panic(`DupList maximum height must be between 2 and 64`)
+		panic(`Duplist maximum height must be between 2 and 64`)
 	}
 }
 
-func (d *DupList) First() *DupElement {
+func (d *Duplist) First() *DupElement {
 	return d.front[0]
 }
 
-func (d *DupList) Insert(key int64, val string) {
+func (d *Duplist) Insert(key int64, val string) {
 	if key <= 0 { // no-op
 		return
 	}
@@ -48,12 +48,12 @@ func (d *DupList) Insert(key int64, val string) {
 	}
 }
 
-func (d *DupList) searchAndInsert(de *DupElement) {
+func (d *Duplist) searchAndInsert(de *DupElement) {
 	left, iter := d.search(de.key)
 	d.insert(left, de, iter)
 }
 
-func (d *DupList) search(key int64) (left []*DupElement, iter *DupElement) {
+func (d *Duplist) search(key int64) (left []*DupElement, iter *DupElement) {
 	left = make([]*DupElement, d.maxHeight)
 
 	for h := d.maxHeight - 1; h >= 0; h-- {
@@ -78,7 +78,7 @@ func (d *DupList) search(key int64) (left []*DupElement, iter *DupElement) {
 	return
 }
 
-func (d *DupList) insert(left []*DupElement, de, right *DupElement) {
+func (d *Duplist) insert(left []*DupElement, de, right *DupElement) {
 	for i := 0; i < len(de.nexts); i++ {
 		if right != nil && i < len(right.nexts) {
 
@@ -93,7 +93,7 @@ func (d *DupList) insert(left []*DupElement, de, right *DupElement) {
 	}
 }
 
-func (d *DupList) takeNextsFromLeftAtIndex(i int, left []*DupElement, de *DupElement) {
+func (d *Duplist) takeNextsFromLeftAtIndex(i int, left []*DupElement, de *DupElement) {
 	if left[i] != nil {
 		de.nexts[i] = left[i].nexts[i]
 	} else {
@@ -101,7 +101,7 @@ func (d *DupList) takeNextsFromLeftAtIndex(i int, left []*DupElement, de *DupEle
 	}
 }
 
-func (d *DupList) reassignLeftAtIndex(i int, left []*DupElement, de *DupElement) {
+func (d *Duplist) reassignLeftAtIndex(i int, left []*DupElement, de *DupElement) {
 	if left[i] == nil {
 		d.front[i] = de
 	} else {
@@ -109,7 +109,7 @@ func (d *DupList) reassignLeftAtIndex(i int, left []*DupElement, de *DupElement)
 	}
 }
 
-func (d *DupList) DelFirst() {
+func (d *Duplist) DelFirst() {
 
 	for i := 0; i < d.maxHeight; i++ {
 		if d.front[i] == nil || d.front[i] != d.front[0] {
