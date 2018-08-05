@@ -1,6 +1,7 @@
 package skiplist
 
 import (
+	"math/rand"
 	"strconv"
 	"testing"
 
@@ -75,4 +76,21 @@ func TestDupList(t *testing.T) {
 	}
 	assert.Equal(t, "", vals)
 	assert.Equal(t, "", string(keys))
+}
+
+func BenchmarkDuplistInsert(b *testing.B) {
+
+	rand.Seed(60065093012437)
+
+	N := 1000 * 10
+	dup := NewDuplist(22)
+	for i := 0; i < N; i++ {
+		i64 := rand.Int63()
+		dup.Insert(i64, strconv.FormatInt(i64, 10))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		dup.Insert(745908519345800, "val")
+	}
 }

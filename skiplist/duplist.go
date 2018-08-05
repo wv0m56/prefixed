@@ -2,10 +2,10 @@ package skiplist
 
 // DupList is a modified skiplist implementation allowing duplicate int64
 // keys to exist inside the same list. Elements with duplicate keys are
-// adjacent inside Duplist but their order is undefined. Elements with different
-// keys are sorted in ascending order as usual.
-// Duplist is required for implementing TTL and cache eviction functionality.
-// Duplist does not allow random get or delete and instead only allows
+// adjacent inside DupList, with a later insert placed left of earlier ones.
+// Elements with different keys are sorted in ascending order as usual.
+// DupList is required for implementing TTL and cache eviction functionality.
+// DupList does not allow random get or delete and instead only allows
 // get or delete on the first element of the list.
 type DupList struct {
 	front     []*DupElement
