@@ -34,23 +34,27 @@ func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 		return nil, errors.New("non default expectedLen must be >= 1024")
 	}
 
-	var n float64
+	log2 := func(i int) int {
+		return int(math.Floor(math.Log2(float64(i))))
+	}
+
+	var n int
 	if expectedLen <= 0 {
-		n = math.Log2(float64(10*1000*1000) / 2)
+		n = log2(10 * 1000 * 1000 / 2)
 	} else {
-		n = math.Log2(float64(expectedLen) / 2)
+		n = log2(expectedLen / 2)
 	}
 
 	e := &Engine{
 		sync.RWMutex{},
-		skiplist.NewSkiplist(int(math.Floor(n))),
+		skiplist.NewSkiplist(n),
 		make(map[string]*condition),
 		&ttlStore{
 			sync.Mutex{},
 
 			// assume 50% of elements will be TTL'ed
 			// configurable later
-			*(skiplist.NewDuplist(int(math.Floor(n) - 1))),
+			*(skiplist.NewDuplist(n - 1)),
 
 			nil,
 		},

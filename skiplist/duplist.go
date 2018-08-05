@@ -1,6 +1,8 @@
 package skiplist
 
-// Duplist is a modified skiplist implementation allowing duplicate int64
+import "time"
+
+// Duplist is a modified skiplist implementation allowing duplicate time
 // keys to exist inside the same list. Elements with duplicate keys are
 // adjacent inside Duplist, with a later insert placed left of earlier ones.
 // Elements with different keys are sorted in ascending order as usual.
@@ -31,10 +33,7 @@ func (d *Duplist) First() *DupElement {
 	return d.front[0]
 }
 
-func (d *Duplist) Insert(key int64, val string) {
-	if key <= 0 { // no-op
-		return
-	}
+func (d *Duplist) Insert(key time.Time, val string) {
 
 	de := newDupElem(key, val, d.maxHeight)
 
@@ -53,7 +52,7 @@ func (d *Duplist) searchAndInsert(de *DupElement) {
 	d.insert(left, de, iter)
 }
 
-func (d *Duplist) search(key int64) (left []*DupElement, iter *DupElement) {
+func (d *Duplist) search(key time.Time) (left []*DupElement, iter *DupElement) {
 	left = make([]*DupElement, d.maxHeight)
 
 	for h := d.maxHeight - 1; h >= 0; h-- {
@@ -66,7 +65,7 @@ func (d *Duplist) search(key int64) (left []*DupElement, iter *DupElement) {
 		}
 
 		for {
-			if iter == nil || key <= iter.key {
+			if iter == nil || key.Before(iter.key) || key.Equal(iter.key) {
 				break
 			} else {
 				left[h] = iter

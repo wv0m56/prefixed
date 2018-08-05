@@ -14,7 +14,7 @@ type TTL struct {
 }
 
 // SetTTL sets TTL values in seconds of the given keys. For keys that don't
-// exist, SetTTL is a no-op.
+// exist or where Seconds <= 0, SetTTL is a no-op.
 func (e *Engine) SetTTL(ttl ...*TTL) {
 	e.setTTL(Second, ttl...)
 }
@@ -25,6 +25,9 @@ func (e *Engine) setTTL(unit Duration, ttl ...*TTL) {
 	defer e.ts.Unlock()
 
 	for _, v := range ttl {
+		if v.Seconds <= 0 {
+			continue
+		}
 		deadline := Now().Add(Duration(int64(v.Seconds) * int64(unit)))
 		e.ts.Insert(deadline.UnixNano(), v.Key)
 	}
