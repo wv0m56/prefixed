@@ -29,7 +29,7 @@ func (e *Engine) setTTL(unit Duration, ttl ...*TTL) {
 			continue
 		}
 		deadline := Now().Add(Duration(int64(v.Seconds) * int64(unit)))
-		e.ts.Insert(deadline.UnixNano(), v.Key)
+		e.ts.Insert(deadline, v.Key)
 	}
 }
 
@@ -46,7 +46,7 @@ func (ts *ttlStore) startLoop(step Duration) {
 		ts.Lock()
 
 		var keysToDelete []string
-		for f := ts.First(); f != nil && f.Key() > Now().UnixNano(); f = ts.First() {
+		for f := ts.First(); f != nil && f.Key().After(Now()); f = ts.First() {
 
 			keysToDelete = append(keysToDelete, ts.First().Val())
 			ts.DelFirst()
