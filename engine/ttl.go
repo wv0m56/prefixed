@@ -24,11 +24,12 @@ func (e *Engine) setTTL(unit Duration, ttl ...*TTL) {
 	e.ts.Lock()
 	defer e.ts.Unlock()
 
+	now := Now()
 	for _, v := range ttl {
 		if v.Seconds <= 0 {
 			continue
 		}
-		deadline := Now().Add(Duration(int64(v.Seconds) * int64(unit)))
+		deadline := now.Add(Duration(int64(v.Seconds) * int64(unit)))
 		e.ts.Insert(deadline, v.Key)
 	}
 }

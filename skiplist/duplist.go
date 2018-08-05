@@ -6,7 +6,7 @@ import "time"
 // keys to exist inside the same list. Elements with duplicate keys are
 // adjacent inside Duplist, with a later insert placed left of earlier ones.
 // Elements with different keys are sorted in ascending order as usual.
-// Duplist is required for implementing TTL and cache eviction functionality.
+// Duplist is required for implementing TTL.
 // Duplist does not allow random get or delete and instead only allows
 // get or delete on the first element of the list.
 type Duplist struct {
