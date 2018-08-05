@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"math"
 	"sync"
+	"time"
 
 	"github.com/wv0m56/prefixed/plugin/origin"
 	"github.com/wv0m56/prefixed/skiplist"
@@ -18,6 +19,7 @@ type Engine struct {
 	sync.RWMutex
 	s        *skiplist.Skiplist
 	fillCond map[string]*condition
+	ts       *ttlStore
 	o        origin.Origin
 	// c      client.ClientPlugin
 }
@@ -34,17 +36,33 @@ func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 
 	var n float64
 	if expectedLen <= 0 {
-		n = float64(10 * 1000 * 1000)
+		n = math.Log2(float64(10*1000*1000) / 2)
 	} else {
 		n = math.Log2(float64(expectedLen) / 2)
 	}
 
-	return &Engine{
+	e := &Engine{
 		sync.RWMutex{},
 		skiplist.NewSkiplist(int(math.Floor(n))),
 		make(map[string]*condition),
+		&ttlStore{
+			sync.Mutex{},
+
+			// assume 50% of elements will be TTL'ed
+			// configurable later
+			*(skiplist.NewDuplist(int(math.Floor(n) - 1))),
+
+			nil,
+		},
 		o,
-	}, nil
+	}
+
+	e.ts.e = e
+
+	// configurable later
+	go e.ts.startLoop(300 * time.Millisecond)
+
+	return e, nil
 }
 
 // Get returns a *bytes.Reader with the value associated with key as the
@@ -222,16 +240,12 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 	return
 }
 
-// SetTTL sets TTL values of the given keys. On keys that don't exist, SetTTL is
-// a no-op.
-func (e *Engine) SetTTL(t ...TTL) {
-	//
-}
-
-// TTL is the data pair to be passed into SetTTL().
-type TTL struct {
-	Key string
-	TTL int
+func (e *Engine) del(keys ...string) {
+	e.Lock()
+	for _, k := range keys {
+		e.s.Del(k)
+	}
+	e.Unlock()
 }
 
 type rowWriter struct {
