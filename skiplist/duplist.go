@@ -1,14 +1,17 @@
 package skiplist
 
-import "time"
+import (
+	"time"
+)
 
 // Duplist is a modified skiplist implementation allowing duplicate time
 // keys to exist inside the same list. Elements with duplicate keys are
 // adjacent inside Duplist, with a later insert placed left of earlier ones.
 // Elements with different keys are sorted in ascending order as usual.
 // Duplist is required for implementing TTL.
-// Duplist does not allow random get or delete and instead only allows
-// get or delete on the first element of the list.
+// Duplist does not allow random get or delete by specifying a key and instead
+// only allows get or delete on the first element of the list, or delete by
+// specifying an element pointer.
 type Duplist struct {
 	front     []*DupElement
 	maxHeight int
@@ -33,7 +36,48 @@ func (d *Duplist) First() *DupElement {
 	return d.front[0]
 }
 
-func (d *Duplist) Insert(key time.Time, val string) {
+func (d *Duplist) DelElement(de *DupElement) {
+	if de == nil {
+		return
+	}
+	left, it := d.iterSearch(de)
+	if it == de {
+		d.del(left, it)
+	}
+}
+
+func (d *Duplist) iterSearch(de *DupElement) (left []*DupElement, iter *DupElement) {
+	left = make([]*DupElement, d.maxHeight)
+
+	for h := d.maxHeight - 1; h >= 0; h-- {
+
+		if h == d.maxHeight-1 || left[h+1] == nil {
+			iter = d.front[h]
+		} else {
+			left[h] = left[h+1]
+			iter = left[h].nexts[h]
+		}
+
+		for {
+			if iter == nil || iter == de || de.key.Before(iter.key) {
+				break
+			} else {
+				left[h] = iter
+				iter = iter.nexts[h]
+			}
+		}
+	}
+
+	return
+}
+
+func (d *Duplist) del(left []*DupElement, de *DupElement) {
+	for i := 0; i < len(de.nexts); i++ {
+		d.reassignLeftAtIndex(i, left, de.nexts[i])
+	}
+}
+
+func (d *Duplist) Insert(key time.Time, val string) *DupElement {
 
 	de := newDupElem(key, val, d.maxHeight)
 
@@ -45,6 +89,7 @@ func (d *Duplist) Insert(key time.Time, val string) {
 
 		d.searchAndInsert(de)
 	}
+	return de
 }
 
 func (d *Duplist) searchAndInsert(de *DupElement) {

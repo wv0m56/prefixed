@@ -39,12 +39,8 @@ func (e *Element) Next() *Element {
 }
 
 func newElem(key string, val []byte, maxHeight int) *Element {
-	e := &Element{}
 	lvl := 1 + addHeight(maxHeight)
-	e.key = key
-	e.val = val
-	e.nexts = make([]*Element, lvl)
-	return e
+	return &Element{key, val, make([]*Element, lvl)}
 }
 
 func addHeight(maxHeight int) int {

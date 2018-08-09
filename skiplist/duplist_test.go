@@ -13,11 +13,13 @@ func TestDuplist(t *testing.T) {
 	assert.Nil(t, d.First())
 
 	now := time.Now()
-	d.Insert(now.Add(50*time.Millisecond), "foo")
+	el := d.Insert(now.Add(50*time.Millisecond), "foo")
 	d.Insert(now.Add(50*time.Millisecond), "bar")
 	d.Insert(now.Add(50*time.Millisecond), "baz")
 	d.Insert(now.Add(70*time.Millisecond), "qux")
 	d.Insert(now.Add(30*time.Millisecond), "first")
+	assert.NotNil(t, el)
+	assert.Equal(t, "foo", el.Val())
 
 	first := d.First()
 	assert.Equal(t, now.Add(30*time.Millisecond), first.Key())
@@ -36,19 +38,19 @@ func TestDuplist(t *testing.T) {
 	}
 	assert.Equal(t, "bazbarfooqux", vals)
 
-	d.DelFirst()
+	d.DelElement(el)
 	vals = ""
 	for it := d.First(); it != nil; it = it.Next() {
 		vals += it.Val()
 	}
-	assert.Equal(t, "barfooqux", vals)
+	assert.Equal(t, "bazbarqux", vals)
 
 	d.DelFirst()
 	vals = ""
 	for it := d.First(); it != nil; it = it.Next() {
 		vals += it.Val()
 	}
-	assert.Equal(t, "fooqux", vals)
+	assert.Equal(t, "barqux", vals)
 
 	d.DelFirst()
 	vals = ""

@@ -170,12 +170,15 @@ func TestInsertsInternal(t *testing.T) {
 	skip.Upsert("loop", []byte("loop"))
 	assert.Equal(t, int64(8), skip.Len())
 	assert.Equal(t, int64(35), skip.PayloadSize())
-	skip.Del("animal")
+	e = skip.Del("animal")
+	assert.NotNil(t, e)
+	assert.Equal(t, "animal", e.Key())
 	assert.Equal(t, int64(7), skip.Len())
 	assert.Equal(t, int64(35-6), skip.PayloadSize())
 	skip.DelByPrefix("lo")
 	assert.Equal(t, int64(3), skip.Len())
 	assert.Equal(t, int64(35-6-17), skip.PayloadSize())
+	assert.Nil(t, skip.Del("batman"))
 
 	// Val
 	e, ok = skip.Get("moon")

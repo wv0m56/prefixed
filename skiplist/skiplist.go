@@ -96,14 +96,16 @@ func (s *Skiplist) GetByPrefix(p string) (es []*Element) {
 
 // Del deletes the element refered by key. It only removes all references to
 // underlying *Element. As long as another part of the program is holding the
-// deleted *Element, it will not be garbage collected.
-func (s *Skiplist) Del(key string) {
+// deleted *Element, it will not be garbage collected. Return the deleted
+// element if key is found or nil if it doesn't exist.
+func (s *Skiplist) Del(key string) *Element {
 
 	left, it := s.search(key)
 	if it != nil && key == it.key {
 		s.del(left, it)
+		return it
 	}
-	return
+	return nil
 }
 
 // DelByPrefix deletes elements with keys which have prefix p.
