@@ -2,17 +2,17 @@ package engine
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// internals
 func TestLinkedList(t *testing.T) {
 
 	ll := &linkedList{}
 	ll.delFront()
 
-	ll.addToBack(time.Now(), "one")
+	ll.addToBack("one")
 	assert.NotNil(t, ll.front)
 	assert.NotNil(t, ll.back)
 	assert.Equal(t, ll.front, ll.back)
@@ -21,10 +21,10 @@ func TestLinkedList(t *testing.T) {
 	assert.Nil(t, ll.front)
 	assert.Nil(t, ll.back)
 
-	ll.addToBack(time.Now(), "one")
-	ll.addToBack(time.Now(), "two")
-	ll.addToBack(time.Now(), "3")
-	ll.addToBack(time.Now(), "4")
+	ll.addToBack("one")
+	ll.addToBack("two")
+	ll.addToBack("3")
+	ll.addToBack("4")
 	assert.Equal(t, "one", ll.front.val)
 	assert.Equal(t, "4", ll.back.val)
 

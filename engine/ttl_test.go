@@ -25,6 +25,7 @@ func TestTTL(t *testing.T) {
 	e.ts = &ttlStore{
 		sync.Mutex{},
 		*(skiplist.NewDuplist(20)),
+		map[string]*skiplist.DupElement{},
 		e,
 	} // leak but dont care
 
@@ -33,15 +34,19 @@ func TestTTL(t *testing.T) {
 	e.setTTL(Millisecond, &TTL{"c", 19}, &TTL{"f", 25}, &TTL{"z", 11})
 
 	vals := ""
+	e.rwm.RLock()
 	for it := e.s.First(); it != nil; it = it.Next() {
 		vals += it.Key()
 	}
+	e.rwm.RUnlock()
 	assert.Equal(t, "abcdef", vals)
 
 	Sleep(20 * Millisecond)
 	vals = ""
+	e.rwm.RLock()
 	for it := e.s.First(); it != nil; it = it.Next() {
 		vals += it.Key()
 	}
+	e.rwm.RUnlock()
 	assert.Equal(t, "abde", vals)
 }

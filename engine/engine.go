@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylertreat/BoomFilters"
 	"github.com/wv0m56/prefixed/plugin/origin"
 	"github.com/wv0m56/prefixed/skiplist"
 )
@@ -16,10 +17,11 @@ import (
 // Engine wraps a skiplist data structure with all the goodies
 // associated with caching (TTL, cache-filling mechanism, etc).
 type Engine struct {
-	sync.RWMutex
+	rwm      *sync.RWMutex
 	s        *skiplist.Skiplist
 	fillCond map[string]*condition
 	ts       *ttlStore
+	ep       *evictPolicy
 	o        origin.Origin
 	// c      client.ClientPlugin
 }
@@ -46,7 +48,7 @@ func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 	}
 
 	e := &Engine{
-		sync.RWMutex{},
+		&sync.RWMutex{},
 		skiplist.NewSkiplist(n),
 		make(map[string]*condition),
 		&ttlStore{
@@ -56,15 +58,25 @@ func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 			// configurable later
 			*(skiplist.NewDuplist(n - 1)),
 
+			map[string]*skiplist.DupElement{},
 			nil,
+		},
+		&evictPolicy{
+			sync.Mutex{},
+			boom.NewCountMinSketch(0.001, 0.99),
+			&linkedList{},
+			nil,
+			24 * 3600 * time.Second, // 1 day, configurable later
 		},
 		o,
 	}
 
 	e.ts.e = e
+	e.ep.e = e
 
 	// configurable later
 	go e.ts.startLoop(300 * time.Millisecond)
+	go e.ep.startLoop(1 * time.Second)
 
 	return e, nil
 }
@@ -101,8 +113,8 @@ func (e *Engine) get(key string) (*bytes.Reader, error) {
 }
 
 func (e *Engine) tryget(key string) *bytes.Reader {
-	e.RLock()
-	defer e.RUnlock()
+	e.rwm.RLock()
+	defer e.rwm.RUnlock()
 	if el, ok := e.s.Get(key); ok && el != nil {
 		return el.ValReader()
 	}
@@ -114,9 +126,9 @@ func (e *Engine) tryget(key string) *bytes.Reader {
 // value is associated with keys having prefix p.
 func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
 
-	e.RLock()
+	e.rwm.RLock()
 	els := e.s.GetByPrefix(p)
-	e.RUnlock()
+	e.rwm.RUnlock()
 
 	if els == nil {
 		return nil
@@ -133,9 +145,9 @@ func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
 // []byte representing the values.
 func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 
-	e.RLock()
+	e.rwm.RLock()
 	els := e.s.GetByPrefix(p)
-	e.RUnlock()
+	e.rwm.RUnlock()
 
 	if els == nil {
 		return nil
@@ -152,9 +164,9 @@ func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 // returned Reader yields the row's value after CacheFill if read from.
 func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 
-	e.Lock()
+	e.rwm.Lock()
 	if el, ok := e.s.Get(key); ok && el != nil {
-		e.Unlock()
+		e.rwm.Unlock()
 		return el.ValReader(), nil
 	}
 
@@ -167,17 +179,17 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 	} else if ok && cond == nil {
 
 		// must never reach here
-		e.Unlock()
+		e.rwm.Unlock()
 		return nil, errors.New("nil condition during cache fill")
 
 	} else {
 
-		e.fillCond[key] = &condition{*sync.NewCond(e), 1, nil, nil}
+		e.fillCond[key] = &condition{*sync.NewCond(e.rwm), 1, nil, nil}
 
 		go func() {
 
 			// fetch from remote and fill up buffer
-			rc := e.o.Fetch(key)
+			rc := e.o.Fetch(key) // later add timeout cancellation
 			rw := &rowWriter{key, nil, e}
 
 			var err error
@@ -192,18 +204,18 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 				if rc != nil {
 					_ = rc.Close()
 				}
-				e.Lock()
+				e.rwm.Lock()
 				e.fillCond[key].err = err
 
 			} else {
 
-				e.Lock()
+				e.rwm.Lock()
 				rw.Commit()
 				e.fillCond[key].b = rw.b.Bytes()
 			}
 
-			e.Unlock()
 			e.fillCond[key].Broadcast()
+			e.rwm.Unlock()
 
 			return
 		}()
@@ -239,17 +251,17 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 		delete(e.fillCond, key)
 	}
 
-	e.Unlock()
+	e.rwm.Unlock()
 
 	return
 }
 
+// invoked by the ttl loop
 func (e *Engine) del(keys ...string) {
-	e.Lock()
 	for _, k := range keys {
-		e.s.Del(k)
+		el := e.s.Del(k)
+		e.ep.removeFromWindow(el) // remove from cms
 	}
-	e.Unlock()
 }
 
 type rowWriter struct {

@@ -62,7 +62,7 @@ func TestHotKey(t *testing.T) {
 	e, err := NewEngine(1025, &fake.Impl{})
 	assert.Nil(t, err)
 	wg := sync.WaitGroup{}
-	N := 10000
+	N := 8000
 	wg.Add(N)
 	for i := 0; i < N; i++ {
 		go func() {
