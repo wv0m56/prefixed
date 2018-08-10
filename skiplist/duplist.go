@@ -110,7 +110,7 @@ func (d *Duplist) search(key time.Time) (left []*DupElement, iter *DupElement) {
 		}
 
 		for {
-			if iter == nil || key.Before(iter.key) || key.Equal(iter.key) {
+			if iter == nil || key.Before(iter.key) || key.Equal(iter.key) { // slow comparison
 				break
 			} else {
 				left[h] = iter

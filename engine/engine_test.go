@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wv0m56/prefixed/plugin/origin/fake"
@@ -11,7 +12,7 @@ import (
 
 func TestSimpleIO(t *testing.T) {
 
-	e, err := NewEngine(1025, &fake.Impl{})
+	e, err := NewEngine(&EngineOptionsDefault)
 	assert.Nil(t, err)
 	assert.Nil(t, err)
 	valR, err := e.Get("water")
@@ -39,7 +40,7 @@ func TestSimpleIO(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 
-	e, err := NewEngine(1025, &fake.Impl{})
+	e, err := NewEngine(&EngineOptionsDefault)
 	assert.Nil(t, err)
 	r1, err := e.CacheFill("water")
 	assert.Nil(t, err)
@@ -59,7 +60,7 @@ func TestPrefix(t *testing.T) {
 
 func TestHotKey(t *testing.T) {
 
-	e, err := NewEngine(1025, &fake.Impl{})
+	e, err := NewEngine(&EngineOptionsDefault)
 	assert.Nil(t, err)
 	wg := sync.WaitGroup{}
 	N := 8000
@@ -88,12 +89,51 @@ func TestHotKey(t *testing.T) {
 	wg.Wait()
 }
 
+// API + internals
+func TestEvictUponDelete(t *testing.T) {
+
+	opts := EngineOptionsDefault
+	opts.O = &fake.NoDelayOrigin{}
+	opts.EvictPolicyRelevanceWindow = 50 * time.Millisecond
+	opts.EvictPolicyTickStep = 1 * time.Millisecond
+
+	eng, err := NewEngine(&opts)
+	assert.Nil(t, err)
+
+	b, err := eng.GetCopy("abc")
+	assert.Nil(t, err)
+	assert.Equal(t, "abc", string(b))
+
+	eng.ep.Lock()
+	ptr, ok := eng.ep.listElPtr["abc"]
+	assert.True(t, ok)
+	assert.Equal(t, "abc", ptr.val)
+	assert.Equal(t, uint64(1), eng.ep.cms.Count([]byte("abc")))
+	eng.ep.Unlock()
+
+	time.Sleep(50 * time.Millisecond)
+
+	eng.ep.Lock()
+	ptr, ok = eng.ep.listElPtr["abc"]
+	assert.False(t, ok)
+	assert.Nil(t, ptr)
+	assert.Equal(t, uint64(0), eng.ep.cms.Count([]byte("abc")))
+	eng.ep.Unlock()
+}
+
+// API + internals
+func TestRemoveTtlUponDelete(t *testing.T) {
+	//
+}
+
 // Test how much time N concurrent calls to CacheFill spend resolving lock
 // contention, given 0 network delay.
 func BenchmarkHotKey(b *testing.B) {
 
 	N := 10000
-	e, _ := NewEngine(1025, &fake.BenchImpl{})
+	opts := EngineOptionsDefault
+	opts.O = &fake.NoDelayOrigin{}
+	e, _ := NewEngine(&opts)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -113,7 +153,9 @@ func BenchmarkHotKey(b *testing.B) {
 func BenchmarkErrorKey(b *testing.B) {
 
 	N := 10000
-	e, _ := NewEngine(1025, &fake.BenchImpl{})
+	opts := EngineOptionsDefault
+	opts.O = &fake.NoDelayOrigin{}
+	e, _ := NewEngine(&opts)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

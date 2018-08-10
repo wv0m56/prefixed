@@ -11,6 +11,7 @@ import (
 
 	"github.com/tylertreat/BoomFilters"
 	"github.com/wv0m56/prefixed/plugin/origin"
+	"github.com/wv0m56/prefixed/plugin/origin/fake"
 	"github.com/wv0m56/prefixed/skiplist"
 )
 
@@ -26,13 +27,29 @@ type Engine struct {
 	// c      client.ClientPlugin
 }
 
+type EngineOptions struct {
+	ExpectedLen                int
+	EvictPolicyRelevanceWindow time.Duration
+	EvictPolicyTickStep        time.Duration
+	TtlTickStep                time.Duration
+	O                          origin.Origin
+}
+
+var EngineOptionsDefault EngineOptions = EngineOptions{
+	ExpectedLen:                10 * 1000 * 1000,
+	EvictPolicyRelevanceWindow: 24 * 3600 * time.Second,
+	EvictPolicyTickStep:        1 * time.Second,
+	TtlTickStep:                250 * time.Millisecond,
+	O:                          &fake.DelayedOrigin{}, // TODO: placeholder, must fix
+}
+
 // NewEngine creates a new cache engine with a skiplist as the underlying data
 // structure. Use expectedLen <= 0 for default (10 million). It's better
 // to overestimate expectedLen than to underestimate it.
 // NewEngine panics if expectedLen is positive and is less than 1024 (pointless).
-func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
+func NewEngine(opts *EngineOptions) (*Engine, error) {
 
-	if expectedLen > 0 && expectedLen < 1024 {
+	if opts.ExpectedLen > 0 && opts.ExpectedLen < 1024 {
 		return nil, errors.New("non default expectedLen must be >= 1024")
 	}
 
@@ -41,16 +58,19 @@ func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 	}
 
 	var n int
-	if expectedLen <= 0 {
+	if opts.ExpectedLen <= 0 {
 		n = log2(10 * 1000 * 1000 / 2)
 	} else {
-		n = log2(expectedLen / 2)
+		n = log2(opts.ExpectedLen / 2)
 	}
 
 	e := &Engine{
 		&sync.RWMutex{},
+
 		skiplist.NewSkiplist(n),
+
 		make(map[string]*condition),
+
 		&ttlStore{
 			sync.Mutex{},
 
@@ -61,22 +81,25 @@ func NewEngine(expectedLen int, o origin.Origin) (*Engine, error) {
 			map[string]*skiplist.DupElement{},
 			nil,
 		},
+
 		&evictPolicy{
 			sync.Mutex{},
 			boom.NewCountMinSketch(0.001, 0.99),
 			&linkedList{},
+			map[string]*llElement{},
 			nil,
-			24 * 3600 * time.Second, // 1 day, configurable later
+			opts.EvictPolicyRelevanceWindow,
 		},
-		o,
+
+		opts.O,
 	}
 
 	e.ts.e = e
 	e.ep.e = e
 
 	// configurable later
-	go e.ts.startLoop(300 * time.Millisecond)
-	go e.ep.startLoop(1 * time.Second)
+	go e.ts.startLoop(opts.TtlTickStep)
+	go e.ep.startLoop(opts.EvictPolicyTickStep)
 
 	return e, nil
 }
@@ -211,6 +234,7 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 
 				e.rwm.Lock()
 				rw.Commit()
+				e.ep.addToWindow(key)
 				e.fillCond[key].b = rw.b.Bytes()
 			}
 
@@ -259,8 +283,10 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 // invoked by the ttl loop
 func (e *Engine) del(keys ...string) {
 	for _, k := range keys {
-		el := e.s.Del(k)
-		e.ep.removeFromWindow(el) // remove from cms
+
+		if el := e.s.Del(k); el != nil {
+			e.ep.removeFromWindow(el.Key()) // remove from cms
+		}
 	}
 }
 

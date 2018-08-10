@@ -9,12 +9,12 @@ import (
 )
 
 // For tests. It implements the Origin interface.
-type Impl struct{}
+type DelayedOrigin struct{}
 
 // Fetch fetches dummy data. "error" as key simulates a network error should
 // the returned io.ReadCloser is read. Else returns &bytes.Reader([]byte(key))
 // implementing a no-op Close() method with a 100ms delay.
-func (_ *Impl) Fetch(key string) io.ReadCloser {
+func (_ *DelayedOrigin) Fetch(key string) io.ReadCloser {
 	return &fakeReadCloser{bytes.NewReader([]byte(key)), key}
 }
 
@@ -36,10 +36,10 @@ func (frc *fakeReadCloser) Read(p []byte) (int, error) {
 	return frc.br.Read(p)
 }
 
-type BenchImpl struct{}
+type NoDelayOrigin struct{}
 
 // No delay.
-func (_ *BenchImpl) Fetch(key string) io.ReadCloser {
+func (_ *NoDelayOrigin) Fetch(key string) io.ReadCloser {
 	return &benchReadCloser{bytes.NewReader([]byte(key)), key}
 }
 

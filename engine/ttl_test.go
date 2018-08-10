@@ -12,7 +12,9 @@ import (
 
 func TestTTL(t *testing.T) {
 
-	e, err := NewEngine(-1, &fake.BenchImpl{}) // BenchImpl for 0 network delay
+	opts := EngineOptionsDefault
+	opts.O = &fake.NoDelayOrigin{}
+	e, err := NewEngine(&opts)
 	assert.Nil(t, err)
 
 	e.CacheFill("a")
