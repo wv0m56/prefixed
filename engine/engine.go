@@ -36,7 +36,12 @@ type EngineOptions struct {
 }
 
 var EngineOptionsDefault EngineOptions = EngineOptions{
-	ExpectedLen:                10 * 1000 * 1000,
+
+	// Use ExpectedLen <= 0 for default (10 million). It's better
+	// to overestimate ExpectedLen than to underestimate it.
+	// NewEngine panics if ExpectedLen is positive and is less than 1024 (pointless).
+	ExpectedLen: 10 * 1000 * 1000,
+
 	EvictPolicyRelevanceWindow: 24 * 3600 * time.Second,
 	EvictPolicyTickStep:        1 * time.Second,
 	TtlTickStep:                250 * time.Millisecond,
@@ -44,13 +49,11 @@ var EngineOptionsDefault EngineOptions = EngineOptions{
 }
 
 // NewEngine creates a new cache engine with a skiplist as the underlying data
-// structure. Use expectedLen <= 0 for default (10 million). It's better
-// to overestimate expectedLen than to underestimate it.
-// NewEngine panics if expectedLen is positive and is less than 1024 (pointless).
+// structure.
 func NewEngine(opts *EngineOptions) (*Engine, error) {
 
 	if opts.ExpectedLen > 0 && opts.ExpectedLen < 1024 {
-		return nil, errors.New("non default expectedLen must be >= 1024")
+		return nil, errors.New("non default ExpectedLen must be >= 1024")
 	}
 
 	log2 := func(i int) int {
@@ -97,7 +100,6 @@ func NewEngine(opts *EngineOptions) (*Engine, error) {
 	e.ts.e = e
 	e.ep.e = e
 
-	// configurable later
 	go e.ts.startLoop(opts.TtlTickStep)
 	go e.ep.startLoop(opts.EvictPolicyTickStep)
 
@@ -281,11 +283,10 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 }
 
 // invoked by the ttl loop
-func (e *Engine) del(keys ...string) {
+func (e *Engine) ttlDel(keys ...string) {
 	for _, k := range keys {
-
 		if el := e.s.Del(k); el != nil {
-			e.ep.removeFromWindow(el.Key()) // remove from cms
+			go e.ep.removeFromWindow(el.Key()) // remove from cms
 		}
 	}
 }

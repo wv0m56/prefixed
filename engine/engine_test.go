@@ -2,6 +2,7 @@ package engine
 
 import (
 	"io/ioutil"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -15,16 +16,18 @@ func TestSimpleIO(t *testing.T) {
 	e, err := NewEngine(&EngineOptionsDefault)
 	assert.Nil(t, err)
 	assert.Nil(t, err)
+
 	valR, err := e.Get("water")
 	assert.Nil(t, err)
 	b, err := ioutil.ReadAll(valR)
 	assert.Nil(t, err)
 	assert.Equal(t, "water", string(b))
 	assert.Nil(t, err)
+
 	b, err = e.GetCopy("water")
 	assert.Nil(t, err)
 	assert.Equal(t, "water", string(b))
-	b[1]++
+	b[1]++ // mutate returned []byte
 	b, err = e.GetCopy("water")
 	assert.Nil(t, err)
 	assert.Equal(t, "water", string(b))
@@ -42,18 +45,22 @@ func TestPrefix(t *testing.T) {
 
 	e, err := NewEngine(&EngineOptionsDefault)
 	assert.Nil(t, err)
+
 	r1, err := e.CacheFill("water")
 	assert.Nil(t, err)
+
 	r2, err := e.CacheFill("waterfall")
 	assert.Nil(t, err)
 	b, err := ioutil.ReadAll(r1)
 	assert.Nil(t, err)
 	assert.Equal(t, "water", string(b))
+
 	b, err = ioutil.ReadAll(r2)
 	assert.Nil(t, err)
 	assert.Equal(t, "waterfall", string(b))
 	rows := e.GetByPrefix("water")
 	assert.Equal(t, 2, len(rows))
+
 	bs := e.GetCopiesByPrefix("water")
 	assert.Equal(t, 2, len(bs))
 }
@@ -122,8 +129,23 @@ func TestEvictUponDelete(t *testing.T) {
 }
 
 // API + internals
-func TestRemoveTtlUponDelete(t *testing.T) {
-	//
+func TestEngineTTL(t *testing.T) {
+
+	opts := EngineOptionsDefault
+	opts.O = &fake.NoDelayOrigin{}
+
+	eng, err := NewEngine(&opts)
+	assert.Nil(t, err)
+
+	N := 10 * 1000
+	for i := 0; i < N; i++ {
+		r, err := eng.CacheFill(strconv.Itoa(i))
+		assert.Nil(t, err)
+		assert.NotNil(t, r)
+	}
+
+	eng.CacheFill("asdfg")
+	// TODO: not finished
 }
 
 // Test how much time N concurrent calls to CacheFill spend resolving lock

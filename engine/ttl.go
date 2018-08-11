@@ -2,7 +2,7 @@ package engine
 
 import (
 	"sync"
-	. "time"
+	"time"
 
 	"github.com/wv0m56/prefixed/skiplist"
 )
@@ -16,27 +16,58 @@ type TTL struct {
 // SetTTL sets TTL values in seconds of the given keys. For keys that don't
 // exist or where Seconds <= 0, SetTTL is a no-op.
 func (e *Engine) SetTTL(ttl ...*TTL) {
-	e.setTTL(Second, ttl...)
+	e.setTTL(time.Second, ttl...)
 }
 
 // for testing with lower time resolution
-func (e *Engine) setTTL(unit Duration, ttl ...*TTL) {
+func (e *Engine) setTTL(unit time.Duration, ttl ...*TTL) {
 	e.ts.Lock()
 	defer e.ts.Unlock()
 
-	now := Now()
+	now := time.Now()
 	for _, v := range ttl {
 		if v.Seconds <= 0 {
 			continue
 		}
-		deadline := now.Add(Duration(int64(v.Seconds) * int64(unit)))
-		de := e.ts.Insert(deadline, v.Key)
-		e.ts.m[v.Key] = de
+
+		// TODO: check existing TTL, overwrite if exists
+		e.rwm.RLock()
+		if _, ok := e.s.Get(v.Key); !ok {
+			e.rwm.RUnlock()
+			continue
+
+		} else {
+			deadline := now.Add(time.Duration(int64(v.Seconds) * int64(unit)))
+			de := e.ts.Insert(deadline, v.Key)
+			e.ts.m[v.Key] = de
+		}
+		e.rwm.RUnlock()
 	}
 }
 
+// GetTTL returns the number of seconds left until expiry for the given keys, in
+// the order in which keys are passed into args.
+// Keys without TTL will yield negative values.
+func (e *Engine) GetTTL(keys ...string) []float64 {
+	e.ts.Lock()
+	defer e.ts.Unlock()
+
+	var t []float64
+	now := time.Now()
+	for _, k := range keys {
+		d, ok := e.ts.m[k]
+		if ok {
+			t = append(t, d.Key().Sub(now).Seconds())
+		} else {
+			t = append(t, -1)
+		}
+	}
+
+	return t
+}
+
 // RemoveTTL cancels the expiration of keys after a set period. If the TTL was
-// never set in the first place for a given key, RemoveTTL is a no-op.
+// not set in the first place for a given key, RemoveTTL is a no-op.
 func (e *Engine) RemoveTTL(keys ...string) {
 	e.ts.Lock()
 	defer e.ts.Unlock()
@@ -46,6 +77,7 @@ func (e *Engine) RemoveTTL(keys ...string) {
 			continue
 		} else {
 			e.ts.DelElement(de)
+			delete(e.ts.m, k)
 		}
 	}
 }
@@ -58,22 +90,25 @@ type ttlStore struct {
 }
 
 // to be invoked as a goroutine e.g. go startLoop()
-func (ts *ttlStore) startLoop(step Duration) {
+func (ts *ttlStore) startLoop(step time.Duration) {
 
-	for range Tick(step) {
+	for range time.Tick(step) {
 		ts.Lock()
 
-		var keysToDelete []string
-		for f := ts.First(); f != nil && f.Key().After(Now()); f = ts.First() {
+		now := time.Now()
+		var dataKeysToDelete []string
+		for f := ts.First(); f != nil && now.After(f.Key()); f = ts.First() {
 
-			keysToDelete = append(keysToDelete, ts.First().Val())
+			dataKeysToDelete = append(dataKeysToDelete, f.Val())
 			ts.DelFirst()
 			delete(ts.m, f.Val())
 		}
 
-		ts.e.rwm.Lock()
-		ts.e.del(keysToDelete...)
-		ts.e.rwm.Unlock()
+		if len(dataKeysToDelete) > 0 {
+			ts.e.rwm.Lock()
+			ts.e.ttlDel(dataKeysToDelete...)
+			ts.e.rwm.Unlock()
+		}
 
 		ts.Unlock()
 	}
