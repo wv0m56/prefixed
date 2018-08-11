@@ -60,7 +60,7 @@ func TestTTL(t *testing.T) {
 	}
 
 	// GetTTL
-	e.setTTL(Second, &TTL{"d", 15}, &TTL{"a", 24})
+	e.SetTTL(&TTL{"d", 15}, &TTL{"a", 24})
 	secs := e.GetTTL("a", "d", "ff")
 	assert.Equal(t, 3, len(secs))
 
@@ -73,6 +73,11 @@ func TestTTL(t *testing.T) {
 	secs = e.GetTTL("a", "d", "ff")
 	assert.True(t, roughly(23.95, secs[0]))
 	assert.True(t, roughly(14.95, secs[1]))
+
+	// Overwrite existing TTL
+	e.SetTTL(&TTL{"a", 700})
+	secs = e.GetTTL("a", "d", "ff")
+	assert.True(t, roughly(700, secs[0]))
 
 	// RemoveTTL
 	e.RemoveTTL("a", "d", "ff")

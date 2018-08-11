@@ -30,16 +30,19 @@ func (e *Engine) setTTL(unit time.Duration, ttl ...*TTL) {
 			continue
 		}
 
-		// TODO: check existing TTL, overwrite if exists
 		e.rwm.RLock()
 		if _, ok := e.s.Get(v.Key); !ok {
 			e.rwm.RUnlock()
 			continue
 
 		} else {
+
 			deadline := now.Add(time.Duration(int64(v.Seconds) * int64(unit)))
-			de := e.ts.Insert(deadline, v.Key)
-			e.ts.m[v.Key] = de
+			if de, ok := e.ts.m[v.Key]; ok {
+				e.ts.DelElement(de)
+			}
+			insertedTTL := e.ts.Insert(deadline, v.Key)
+			e.ts.m[v.Key] = insertedTTL
 		}
 		e.rwm.RUnlock()
 	}
