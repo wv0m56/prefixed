@@ -145,7 +145,11 @@ func TestEngineTTL(t *testing.T) {
 	}
 
 	eng.CacheFill("asdfg")
-	// TODO: not finished
+	eng.SetTTL(&TTL{"zzzz", 555}, &TTL{"asdfg", 888})
+	secs := eng.GetTTL("zzzz", "asdfg")
+	assert.Equal(t, 2, len(secs))
+	assert.Equal(t, -1.0, secs[0])
+	assert.True(t, roughly(888, secs[1]))
 }
 
 // Test how much time N concurrent calls to CacheFill spend resolving lock

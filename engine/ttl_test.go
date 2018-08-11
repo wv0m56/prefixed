@@ -52,13 +52,6 @@ func TestTTL(t *testing.T) {
 	e.rwm.RUnlock()
 	assert.Equal(t, "abde", vals)
 
-	roughly := func(a, b float64) bool {
-		if (a/b > 0.999 && a/b <= 1.0) || (a/b >= 1.0 && a/b < 1.001) {
-			return true
-		}
-		return false
-	}
-
 	// GetTTL
 	e.SetTTL(&TTL{"d", 15}, &TTL{"a", 24})
 	secs := e.GetTTL("a", "d", "ff")
@@ -86,4 +79,11 @@ func TestTTL(t *testing.T) {
 	assert.Equal(t, -1.0, secs[0])
 	assert.Equal(t, -1.0, secs[1])
 	assert.Equal(t, -1.0, secs[2])
+}
+
+func roughly(a, b float64) bool {
+	if (a/b > 0.999 && a/b <= 1.0) || (a/b >= 1.0 && a/b < 1.001) {
+		return true
+	}
+	return false
 }
