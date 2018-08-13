@@ -132,11 +132,15 @@ func TestEvictUponDelete(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "abc", string(b))
 
+	eng.GetCopy("abc")
+	eng.GetCopy("abc")
+	eng.GetCopy("abc")
+
 	eng.ep.Lock()
 	ptr, ok := eng.ep.listElPtr["abc"]
 	assert.True(t, ok)
 	assert.Equal(t, "abc", ptr.val)
-	assert.Equal(t, uint64(1), eng.ep.cms.Count([]byte("abc")))
+	assert.Equal(t, uint64(4), eng.ep.cms.Count([]byte("abc")))
 	eng.ep.Unlock()
 
 	time.Sleep(opts.EvictPolicyRelevanceWindow)

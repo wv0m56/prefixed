@@ -129,6 +129,8 @@ func (e *Engine) GetCopy(key string) ([]byte, error) {
 
 func (e *Engine) get(key string) (*bytes.Reader, error) {
 
+	defer e.ep.addToWindow(key)
+
 	r := e.tryget(key)
 	if r != nil { // cache hit
 		return r, nil
@@ -167,6 +169,7 @@ func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
 	rs := make([]*bytes.Reader, len(els))
 	for i, v := range els {
 		rs[i] = v.ValReader()
+		e.ep.addToWindow(v.Key())
 	}
 	return rs
 }
@@ -186,6 +189,7 @@ func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 	rs := make([][]byte, len(els))
 	for i, v := range els {
 		rs[i] = v.ValCopy()
+		e.ep.addToWindow(v.Key())
 	}
 	return rs
 }
@@ -241,7 +245,6 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 
 				e.rwm.Lock()
 				rw.Commit()
-				e.ep.addToWindow(key)
 				e.fillCond[key].b = rw.b.Bytes()
 			}
 
