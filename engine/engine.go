@@ -29,46 +29,39 @@ type Engine struct {
 }
 
 type EngineOptions struct {
-	ExpectedLen                int
+	ExpectedLen                int64
 	EvictPolicyRelevanceWindow time.Duration
 	EvictPolicyTickStep        time.Duration
 	TtlTickStep                time.Duration
 	CacheFillTimeout           time.Duration
+	MaxPayloadTotal            int64
 	O                          origin.Origin
 }
 
 var EngineOptionsDefault EngineOptions = EngineOptions{
 
-	// Use ExpectedLen <= 0 for default (10 million). It's better
-	// to overestimate ExpectedLen than to underestimate it.
-	// NewEngine panics if ExpectedLen is positive and is less than 1024 (pointless).
+	// It's better to overestimate ExpectedLen than to underestimate it.
+	// NewEngine panics if ExpectedLen less than 1024 (pointless).
 	ExpectedLen: 10 * 1000 * 1000,
 
 	EvictPolicyRelevanceWindow: 24 * 3600 * time.Second,
 	EvictPolicyTickStep:        1 * time.Second,
 	TtlTickStep:                250 * time.Millisecond,
 	CacheFillTimeout:           250 * time.Millisecond,
-	O:                          &fake.DelayedOrigin{}, // TODO: placeholder, must fix
+	MaxPayloadTotal:            4 * 1000 * 1000 * 1000, // 4G, dunno
+	O:                          &fake.DelayedOrigin{},  // TODO: placeholder, must fix
 }
 
 // NewEngine creates a new cache engine with a skiplist as the underlying data
 // structure.
 func NewEngine(opts *EngineOptions) (*Engine, error) {
 
-	if opts.ExpectedLen > 0 && opts.ExpectedLen < 1024 {
-		return nil, errors.New("non default ExpectedLen must be >= 1024")
+	if opts.ExpectedLen < 1024 {
+		return nil, errors.New("ExpectedLen must be >= 1024")
 	}
 
-	log2 := func(i int) int {
-		return int(math.Floor(math.Log2(float64(i))))
-	}
-
-	var n int
-	if opts.ExpectedLen <= 0 {
-		n = log2(10 * 1000 * 1000 / 2)
-	} else {
-		n = log2(opts.ExpectedLen / 2)
-	}
+	// log2(ExpectedLen)
+	n := int(math.Floor(math.Log2(float64(opts.ExpectedLen / 2))))
 
 	e := &Engine{
 		&sync.RWMutex{},
@@ -219,9 +212,7 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 	} else {
 
 		e.fillCond[key] = &condition{*sync.NewCond(e.rwm), 1, nil, nil}
-
 		go e.firstFill(key)
-
 		return e.blockUntilFilled(key)
 	}
 }
@@ -290,16 +281,6 @@ func (e *Engine) blockUntilFilled(key string) (r *bytes.Reader, err error) {
 	e.rwm.Unlock()
 
 	return
-}
-
-// Delete deletes keys from the engine, also removing all promises
-// of TTL eviction and occurences from eviction policy statistics.
-// No-op for keys that don't exist.
-func (e *Engine) Delete(keys ...string) {
-	e.rwm.Lock()
-	e.RemoveTTL(keys...)
-	e.delWithoutTTLRemoval(keys...)
-	e.rwm.Unlock()
 }
 
 // invoked by the ttl loop
