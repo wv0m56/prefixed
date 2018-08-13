@@ -130,7 +130,7 @@ func (e *Engine) get(key string) (*bytes.Reader, error) {
 	}
 
 	// cache miss
-	r, err := e.CacheFill(key)
+	r, err := e.cacheFill(key)
 	if err != nil {
 		return nil, err
 	}
@@ -187,9 +187,7 @@ func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 	return rs
 }
 
-// CacheFill fetches value from origin and upserts it into the engine. The
-// returned Reader yields the row's value after CacheFill if read from.
-func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
+func (e *Engine) cacheFill(key string) (*bytes.Reader, error) {
 
 	e.rwm.Lock()
 	if el, ok := e.s.Get(key); ok && el != nil {

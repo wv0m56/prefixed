@@ -16,12 +16,12 @@ func TestTTL(t *testing.T) {
 	e, err := NewEngine(&opts)
 	assert.Nil(t, err)
 
-	e.CacheFill("a")
-	e.CacheFill("b")
-	e.CacheFill("c")
-	e.CacheFill("d")
-	e.CacheFill("e")
-	e.CacheFill("f")
+	e.Get("a")
+	e.Get("b")
+	e.Get("c")
+	e.Get("d")
+	e.Get("e")
+	e.Get("f")
 
 	e.setTTL(Millisecond, &TTL{"c", 19}, &TTL{"f", 25}, &TTL{"z", 11})
 

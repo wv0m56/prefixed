@@ -48,13 +48,13 @@ func TestCachefillTimeout(t *testing.T) {
 	e, err := NewEngine(&opts)
 	assert.Nil(t, err)
 
-	_, err = e.CacheFill("TestCachefillTimeout")
+	_, err = e.Get("TestCachefillTimeout")
 	assert.Nil(t, err)
 
 	opts.CacheFillTimeout = 90 * time.Millisecond
 	e2, err := NewEngine(&opts)
 	assert.Nil(t, err)
-	_, err = e2.CacheFill("TestCachefillTimeout2")
+	_, err = e2.Get("TestCachefillTimeout2")
 	assert.NotNil(t, err)
 	assert.Equal(t, "context deadline exceeded", err.Error())
 }
@@ -64,10 +64,10 @@ func TestPrefix(t *testing.T) {
 	e, err := NewEngine(&EngineOptionsDefault)
 	assert.Nil(t, err)
 
-	r1, err := e.CacheFill("water")
+	r1, err := e.Get("water")
 	assert.Nil(t, err)
 
-	r2, err := e.CacheFill("waterfall")
+	r2, err := e.Get("waterfall")
 	assert.Nil(t, err)
 	b, err := ioutil.ReadAll(r1)
 	assert.Nil(t, err)
@@ -164,12 +164,12 @@ func TestEngineTTL(t *testing.T) {
 
 	N := 10 * 1000
 	for i := 0; i < N; i++ {
-		r, err := eng.CacheFill(strconv.Itoa(i))
+		r, err := eng.Get(strconv.Itoa(i))
 		assert.Nil(t, err)
 		assert.NotNil(t, r)
 	}
 
-	eng.CacheFill("asdfg")
+	eng.Get("asdfg")
 	eng.SetTTL(&TTL{"zzzz", 555}, &TTL{"asdfg", 888})
 	secs := eng.GetTTL("zzzz", "asdfg")
 	assert.Equal(t, 2, len(secs))
