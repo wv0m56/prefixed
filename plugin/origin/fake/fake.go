@@ -3,9 +3,10 @@ package fake
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
-	. "time"
+	"time"
 )
 
 // For tests. It implements the Origin interface.
@@ -13,46 +14,55 @@ type DelayedOrigin struct{}
 
 // Fetch fetches dummy data. "error" as key simulates a network error should
 // the returned io.ReadCloser is read. Else returns &bytes.Reader([]byte(key))
-// implementing a no-op Close() method with a 100ms delay.
-func (_ *DelayedOrigin) Fetch(key string) io.ReadCloser {
-	return &fakeReadCloser{bytes.NewReader([]byte(key)), key}
+// implementing a no-op Close() method with timeout delay.
+func (do *DelayedOrigin) Fetch(key string, timeout time.Duration) io.ReadCloser {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	return &delayedReadCloser{bytes.NewReader([]byte(key)), key, ctx, cancel}
 }
 
-type fakeReadCloser struct {
-	br  *bytes.Reader
-	key string
+type delayedReadCloser struct {
+	br     *bytes.Reader
+	key    string
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
-func (_ *fakeReadCloser) Close() error {
-	return nil
+func (drc *delayedReadCloser) Close() error {
+	drc.cancel()
+	return drc.ctx.Err()
 }
 
-func (frc *fakeReadCloser) Read(p []byte) (int, error) {
-	if frc.key == "error" {
-		Sleep(100 * Millisecond)
-		return 0, errors.New("fake error")
+func (drc *delayedReadCloser) Read(p []byte) (int, error) {
+
+	select {
+
+	case <-drc.ctx.Done():
+		return 0, drc.ctx.Err()
+
+	case <-time.After(100 * time.Millisecond):
+		if drc.key == "error" {
+			return 0, errors.New("fake error")
+		}
+		return drc.br.Read(p)
 	}
-	Sleep(100 * Millisecond)
-	return frc.br.Read(p)
 }
 
 type NoDelayOrigin struct{}
 
-// No delay.
-func (_ *NoDelayOrigin) Fetch(key string) io.ReadCloser {
-	return &benchReadCloser{bytes.NewReader([]byte(key)), key}
+func (_ *NoDelayOrigin) Fetch(key string, _ time.Duration) io.ReadCloser {
+	return &nodelayReadCloser{bytes.NewReader([]byte(key)), key}
 }
 
-type benchReadCloser struct {
+type nodelayReadCloser struct {
 	br  *bytes.Reader
 	key string
 }
 
-func (_ *benchReadCloser) Close() error {
+func (_ *nodelayReadCloser) Close() error {
 	return nil
 }
 
-func (brc *benchReadCloser) Read(p []byte) (int, error) {
+func (brc *nodelayReadCloser) Read(p []byte) (int, error) {
 	if brc.key == "bench error" {
 		return 0, errors.New("fake bench error")
 	}

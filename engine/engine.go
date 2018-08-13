@@ -25,6 +25,7 @@ type Engine struct {
 	ep       *evictPolicy
 	o        origin.Origin
 	// c      client.ClientPlugin
+	timeout time.Duration
 }
 
 type EngineOptions struct {
@@ -32,6 +33,7 @@ type EngineOptions struct {
 	EvictPolicyRelevanceWindow time.Duration
 	EvictPolicyTickStep        time.Duration
 	TtlTickStep                time.Duration
+	CacheFillTimeout           time.Duration
 	O                          origin.Origin
 }
 
@@ -45,6 +47,7 @@ var EngineOptionsDefault EngineOptions = EngineOptions{
 	EvictPolicyRelevanceWindow: 24 * 3600 * time.Second,
 	EvictPolicyTickStep:        1 * time.Second,
 	TtlTickStep:                250 * time.Millisecond,
+	CacheFillTimeout:           250 * time.Millisecond,
 	O:                          &fake.DelayedOrigin{}, // TODO: placeholder, must fix
 }
 
@@ -95,6 +98,8 @@ func NewEngine(opts *EngineOptions) (*Engine, error) {
 		},
 
 		opts.O,
+
+		opts.CacheFillTimeout,
 	}
 
 	e.ts.e = e
@@ -214,7 +219,7 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 		go func() {
 
 			// fetch from remote and fill up buffer
-			rc := e.o.Fetch(key) // later add timeout cancellation
+			rc := e.o.Fetch(key, e.timeout)
 			rw := &rowWriter{key, nil, e}
 
 			var err error
