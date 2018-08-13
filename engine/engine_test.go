@@ -119,7 +119,10 @@ func TestEvictUponDelete(t *testing.T) {
 
 	opts := EngineOptionsDefault
 	opts.O = &fake.NoDelayOrigin{}
-	opts.EvictPolicyRelevanceWindow = 50 * time.Millisecond
+
+	// too small value will fail test -race due to slower execution
+	opts.EvictPolicyRelevanceWindow = 100 * time.Millisecond
+
 	opts.EvictPolicyTickStep = 1 * time.Millisecond
 
 	eng, err := NewEngine(&opts)
@@ -136,7 +139,7 @@ func TestEvictUponDelete(t *testing.T) {
 	assert.Equal(t, uint64(1), eng.ep.cms.Count([]byte("abc")))
 	eng.ep.Unlock()
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(opts.EvictPolicyRelevanceWindow)
 
 	eng.ep.Lock()
 	ptr, ok = eng.ep.listElPtr["abc"]
