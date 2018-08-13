@@ -218,7 +218,7 @@ func (e *Engine) cacheFill(key string) (*bytes.Reader, error) {
 func (e *Engine) firstFill(key string) {
 
 	// fetch from remote and fill up buffer
-	rc := e.o.Fetch(key, e.timeout)
+	rc, exp := e.o.Fetch(key, e.timeout)
 	rw := &rowWriter{key, nil, e}
 
 	var err error
@@ -239,7 +239,14 @@ func (e *Engine) firstFill(key string) {
 	} else {
 
 		e.rwm.Lock()
-		rw.Commit()
+
+		if exp != nil && exp.After(time.Now()) {
+			rw.Commit()
+			e.setExpiry(key, *exp)
+		} else if exp == nil {
+			rw.Commit()
+		}
+
 		e.fillCond[key].b = rw.b.Bytes()
 	}
 

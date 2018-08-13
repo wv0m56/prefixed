@@ -15,7 +15,7 @@ type DelayedOrigin struct{}
 // Fetch fetches dummy data. "error" as key simulates a network error should
 // the returned io.ReadCloser is read. Else returns &bytes.Reader([]byte(key))
 // implementing a no-op Close() method with timeout delay.
-func (do *DelayedOrigin) Fetch(key string, timeout time.Duration) io.ReadCloser {
+func (do *DelayedOrigin) Fetch(key string, timeout time.Duration) (io.ReadCloser, *time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	return &delayedReadCloser{
 		bytes.NewReader([]byte(key)),
@@ -23,7 +23,7 @@ func (do *DelayedOrigin) Fetch(key string, timeout time.Duration) io.ReadCloser 
 		false,
 		ctx,
 		cancel,
-	}
+	}, nil
 }
 
 type delayedReadCloser struct {
@@ -71,8 +71,8 @@ func (drc *delayedReadCloser) Read(p []byte) (int, error) {
 
 type NoDelayOrigin struct{}
 
-func (_ *NoDelayOrigin) Fetch(key string, _ time.Duration) io.ReadCloser {
-	return &nodelayReadCloser{bytes.NewReader([]byte(key)), key}
+func (_ *NoDelayOrigin) Fetch(key string, _ time.Duration) (io.ReadCloser, *time.Time) {
+	return &nodelayReadCloser{bytes.NewReader([]byte(key)), key}, nil
 }
 
 type nodelayReadCloser struct {
@@ -89,4 +89,11 @@ func (brc *nodelayReadCloser) Read(p []byte) (int, error) {
 		return 0, errors.New("fake bench error")
 	}
 	return brc.br.Read(p)
+}
+
+type ExpiringOrigin struct{}
+
+func (_ *ExpiringOrigin) Fetch(key string, _ time.Duration) (io.ReadCloser, *time.Time) {
+	t := time.Now().Add(24 * time.Hour)
+	return &nodelayReadCloser{bytes.NewReader([]byte(key)), key}, &t
 }

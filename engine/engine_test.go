@@ -2,7 +2,6 @@ package engine
 
 import (
 	"io/ioutil"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -157,24 +156,24 @@ func TestEvictUponDelete(t *testing.T) {
 func TestEngineTTL(t *testing.T) {
 
 	opts := EngineOptionsDefault
-	opts.O = &fake.NoDelayOrigin{}
+	opts.O = &fake.ExpiringOrigin{}
 
-	eng, err := NewEngine(&opts)
+	e, err := NewEngine(&opts)
 	assert.Nil(t, err)
 
-	N := 10 * 1000
-	for i := 0; i < N; i++ {
-		r, err := eng.Get(strconv.Itoa(i))
-		assert.Nil(t, err)
-		assert.NotNil(t, r)
-	}
-
-	eng.Get("asdfg")
-	eng.SetTTL(&TTL{"zzzz", 555}, &TTL{"asdfg", 888})
-	secs := eng.GetTTL("zzzz", "asdfg")
+	e.Get("asdfg")
+	secs := e.GetTTL("zzzz", "asdfg")
 	assert.Equal(t, 2, len(secs))
 	assert.Equal(t, -1.0, secs[0])
-	assert.True(t, roughly(888, secs[1]))
+	assert.True(t, roughly(24*3600, secs[1]))
+
+	opts.O = &fake.NoDelayOrigin{}
+	e, err = NewEngine(&opts)
+	assert.Nil(t, err)
+
+	e.Get("pppp")
+	secs = e.GetTTL("zzzz", "pppp")
+	assert.Equal(t, -1.0, secs[1])
 }
 
 // Test how much time N concurrent calls to CacheFill spend resolving lock
