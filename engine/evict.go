@@ -33,7 +33,7 @@ func (ep *evictPolicy) removeFromWindow(key string) {
 	ep.Lock()
 	defer ep.Unlock()
 
-	_ = ep.cms.TestAndRemove([]byte(key), 1)
+	_ = ep.cms.TestAndRemoveAll([]byte(key))
 	if ptr, ok := ep.listElPtr[key]; ok {
 		ep.ll.delByPtr(ptr)
 	}
