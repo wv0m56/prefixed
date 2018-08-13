@@ -208,7 +208,7 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 	if cond, ok := e.fillCond[key]; ok && cond != nil {
 
 		cond.count++
-		return blockUntilFilled(e, key)
+		return e.blockUntilFilled(key)
 
 	} else if ok && cond == nil {
 
@@ -220,42 +220,44 @@ func (e *Engine) CacheFill(key string) (*bytes.Reader, error) {
 
 		e.fillCond[key] = &condition{*sync.NewCond(e.rwm), 1, nil, nil}
 
-		go func() {
+		go e.firstFill(key)
 
-			// fetch from remote and fill up buffer
-			rc := e.o.Fetch(key, e.timeout)
-			rw := &rowWriter{key, nil, e}
-
-			var err error
-			if rc != nil {
-				_, err = io.Copy(rw, rc)
-			} else {
-				err = errors.New("nil ReadCloser from Fetch")
-			}
-
-			if err != nil {
-
-				if rc != nil {
-					_ = rc.Close()
-				}
-				e.rwm.Lock()
-				e.fillCond[key].err = err
-
-			} else {
-
-				e.rwm.Lock()
-				rw.Commit()
-				e.fillCond[key].b = rw.b.Bytes()
-			}
-
-			e.fillCond[key].Broadcast()
-			e.rwm.Unlock()
-
-			return
-		}()
-
-		return blockUntilFilled(e, key)
+		return e.blockUntilFilled(key)
 	}
+}
+
+func (e *Engine) firstFill(key string) {
+
+	// fetch from remote and fill up buffer
+	rc := e.o.Fetch(key, e.timeout)
+	rw := &rowWriter{key, nil, e}
+
+	var err error
+	if rc != nil {
+		_, err = io.Copy(rw, rc)
+	} else {
+		err = errors.New("nil ReadCloser from Fetch")
+	}
+
+	if err != nil {
+
+		if rc != nil {
+			_ = rc.Close()
+		}
+		e.rwm.Lock()
+		e.fillCond[key].err = err
+
+	} else {
+
+		e.rwm.Lock()
+		rw.Commit()
+		e.fillCond[key].b = rw.b.Bytes()
+	}
+
+	e.fillCond[key].Broadcast()
+	e.rwm.Unlock()
+
+	return
 }
 
 type condition struct {
@@ -265,7 +267,7 @@ type condition struct {
 	err   error
 }
 
-func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
+func (e *Engine) blockUntilFilled(key string) (r *bytes.Reader, err error) {
 
 	c := e.fillCond[key]
 	for c.b == nil && c.err == nil {
@@ -291,17 +293,17 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 }
 
 // Delete deletes keys from the engine, also removing all promises
-// of TTL eviction and occurences from keys eviction policy statistics.
+// of TTL eviction and occurences from eviction policy statistics.
 // No-op for keys that don't exist.
 func (e *Engine) Delete(keys ...string) {
 	e.rwm.Lock()
 	e.RemoveTTL(keys...)
-	e.delNotRemoveTTL(keys...)
+	e.delWithoutTTLRemoval(keys...)
 	e.rwm.Unlock()
 }
 
 // invoked by the ttl loop
-func (e *Engine) delNotRemoveTTL(keys ...string) {
+func (e *Engine) delWithoutTTLRemoval(keys ...string) {
 	for _, k := range keys {
 		if el := e.s.Del(k); el != nil {
 			go e.ep.removeFromWindow(el.Key()) // probabilistic
