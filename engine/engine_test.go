@@ -132,9 +132,9 @@ func TestEvictUponDelete(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "abc", string(b))
 
+	eng.Get("abc")
 	eng.GetCopy("abc")
-	eng.GetCopy("abc")
-	eng.GetCopy("abc")
+	eng.Get("abc")
 
 	eng.ep.Lock()
 	ptr, ok := eng.ep.listElPtr["abc"]

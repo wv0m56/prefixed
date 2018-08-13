@@ -290,11 +290,21 @@ func blockUntilFilled(e *Engine, key string) (r *bytes.Reader, err error) {
 	return
 }
 
+// Delete deletes keys from the engine, also removing all promises
+// of TTL eviction and occurences from keys eviction policy statistics.
+// No-op for keys that don't exist.
+func (e *Engine) Delete(keys ...string) {
+	e.rwm.Lock()
+	e.RemoveTTL(keys...)
+	e.delNotRemoveTTL(keys...)
+	e.rwm.Unlock()
+}
+
 // invoked by the ttl loop
-func (e *Engine) ttlDel(keys ...string) {
+func (e *Engine) delNotRemoveTTL(keys ...string) {
 	for _, k := range keys {
 		if el := e.s.Del(k); el != nil {
-			go e.ep.removeFromWindow(el.Key()) // remove from cms
+			go e.ep.removeFromWindow(el.Key()) // probabilistic
 		}
 	}
 }

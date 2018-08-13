@@ -109,7 +109,7 @@ func (ts *ttlStore) startLoop(step time.Duration) {
 
 		if len(dataKeysToDelete) > 0 {
 			ts.e.rwm.Lock()
-			ts.e.ttlDel(dataKeysToDelete...)
+			ts.e.delNotRemoveTTL(dataKeysToDelete...)
 			ts.e.rwm.Unlock()
 		}
 
