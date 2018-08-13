@@ -17,14 +17,21 @@ type DelayedOrigin struct{}
 // implementing a no-op Close() method with timeout delay.
 func (do *DelayedOrigin) Fetch(key string, timeout time.Duration) io.ReadCloser {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	return &delayedReadCloser{bytes.NewReader([]byte(key)), key, ctx, cancel}
+	return &delayedReadCloser{
+		bytes.NewReader([]byte(key)),
+		key,
+		false,
+		ctx,
+		cancel,
+	}
 }
 
 type delayedReadCloser struct {
-	br     *bytes.Reader
-	key    string
-	ctx    context.Context
-	cancel context.CancelFunc
+	br          *bytes.Reader
+	key         string
+	hasBeenRead bool
+	ctx         context.Context
+	cancel      context.CancelFunc
 }
 
 func (drc *delayedReadCloser) Close() error {
@@ -34,16 +41,31 @@ func (drc *delayedReadCloser) Close() error {
 
 func (drc *delayedReadCloser) Read(p []byte) (int, error) {
 
-	select {
+	if !drc.hasBeenRead {
+		// first time Read is called for key
+		select {
 
-	case <-drc.ctx.Done():
-		return 0, drc.ctx.Err()
+		case <-drc.ctx.Done():
+			return 0, drc.ctx.Err()
 
-	case <-time.After(100 * time.Millisecond):
-		if drc.key == "error" {
-			return 0, errors.New("fake error")
+		case <-time.After(100 * time.Millisecond):
+			if drc.key == "error" {
+				return 0, errors.New("fake error")
+			}
+			drc.hasBeenRead = true
+			return drc.br.Read(p)
 		}
-		return drc.br.Read(p)
+
+	} else {
+
+		select {
+
+		case <-drc.ctx.Done():
+			return 0, drc.ctx.Err()
+
+		default:
+			return drc.br.Read(p)
+		}
 	}
 }
 

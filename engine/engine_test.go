@@ -43,12 +43,18 @@ func TestSimpleIO(t *testing.T) {
 
 func TestCachefillTimeout(t *testing.T) {
 
-	opts := EngineOptionsDefault // origin has 200 ms delay
-	opts.CacheFillTimeout = 101 * time.Millisecond
+	opts := EngineOptionsDefault // origin has 100 ms delay
+	opts.CacheFillTimeout = 110 * time.Millisecond
 	e, err := NewEngine(&opts)
 	assert.Nil(t, err)
 
-	_, err = e.CacheFill("abc")
+	_, err = e.CacheFill("TestCachefillTimeout")
+	assert.Nil(t, err)
+
+	opts.CacheFillTimeout = 90 * time.Millisecond
+	e2, err := NewEngine(&opts)
+	assert.Nil(t, err)
+	_, err = e2.CacheFill("TestCachefillTimeout2")
 	assert.NotNil(t, err)
 	assert.Equal(t, "context deadline exceeded", err.Error())
 }
