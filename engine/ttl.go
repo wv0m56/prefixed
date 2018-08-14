@@ -20,7 +20,7 @@ func (e *Engine) setExpiry(key string, expiry time.Time) {
 
 // GetTTL returns the number of seconds left until expiry for the given keys, in
 // the order in which keys are passed into args.
-// Keys without TTL will yield negative values.
+// Keys without TTL yields negative values.
 func (e *Engine) GetTTL(keys ...string) []float64 {
 	e.ts.Lock()
 	defer e.ts.Unlock()

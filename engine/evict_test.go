@@ -17,8 +17,8 @@ func TestEvictPolicy(t *testing.T) {
 		boom.NewCountMinSketch(0.001, 0.99),
 		&linkedList{},
 		map[string]*llElement{},
-		nil,
 		50 * time.Millisecond,
+		map[string]struct{}{},
 	}
 
 	go ep.startLoop(time.Millisecond)

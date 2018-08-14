@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"bytes"
 	"io/ioutil"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -12,7 +14,7 @@ import (
 
 func TestSimpleIO(t *testing.T) {
 
-	e, err := NewEngine(&EngineOptionsDefault)
+	e, err := NewEngine(&OptionsDefault)
 	assert.Nil(t, err)
 	assert.Nil(t, err)
 
@@ -30,6 +32,8 @@ func TestSimpleIO(t *testing.T) {
 	b, err = e.GetCopy("water")
 	assert.Nil(t, err)
 	assert.Equal(t, "water", string(b))
+	_, err = e.GetCopy("error")
+	assert.NotNil(t, err)
 
 	// trigger error, see fake.fakeReadCloser
 	valR, err = e.Get("error")
@@ -42,7 +46,7 @@ func TestSimpleIO(t *testing.T) {
 
 func TestCachefillTimeout(t *testing.T) {
 
-	opts := EngineOptionsDefault // origin has 100 ms delay
+	opts := OptionsDefault // origin has 100 ms delay
 	opts.CacheFillTimeout = 110 * time.Millisecond
 	e, err := NewEngine(&opts)
 	assert.Nil(t, err)
@@ -60,7 +64,7 @@ func TestCachefillTimeout(t *testing.T) {
 
 func TestPrefix(t *testing.T) {
 
-	e, err := NewEngine(&EngineOptionsDefault)
+	e, err := NewEngine(&OptionsDefault)
 	assert.Nil(t, err)
 
 	r1, err := e.Get("water")
@@ -84,7 +88,7 @@ func TestPrefix(t *testing.T) {
 
 func TestHotKey(t *testing.T) {
 
-	e, err := NewEngine(&EngineOptionsDefault)
+	e, err := NewEngine(&OptionsDefault)
 	assert.Nil(t, err)
 	wg := sync.WaitGroup{}
 	N := 8000
@@ -116,7 +120,7 @@ func TestHotKey(t *testing.T) {
 // API + internals
 func TestEvictUponDelete(t *testing.T) {
 
-	opts := EngineOptionsDefault
+	opts := OptionsDefault
 	opts.O = &fake.NoDelayOrigin{}
 
 	// too small value will fail test -race due to slower execution
@@ -152,10 +156,41 @@ func TestEvictUponDelete(t *testing.T) {
 	eng.ep.Unlock()
 }
 
+func TestSimpleEvictFullCache(t *testing.T) {
+
+	opts := OptionsDefault
+	opts.O = &fake.ThousandBytesValOrigin{}
+	opts.MaxPayloadTotalSize = 10 * 1000 * 1000
+
+	e, err := NewEngine(&opts)
+	assert.Nil(t, err)
+
+	for i := 0; i < 10000; i++ {
+		e.Get(strconv.Itoa(i))
+	}
+
+	assert.Equal(t, opts.MaxPayloadTotalSize, e.dataStore.PayloadSize())
+
+	e.Get("abc")
+	r, err := e.Get("abc")
+	assert.Nil(t, err)
+	buf := bytes.NewBuffer(nil)
+	_, err = r.WriteTo(buf)
+	assert.Nil(t, err)
+	assert.True(t, bytes.Equal(make([]byte, 1000), buf.Bytes()))
+}
+
+// TODO:
+// TODO:
+func TestStressEvictPolicy(t *testing.T) {
+
+	assert.True(t, true)
+}
+
 // API + internals
 func TestEngineTTL(t *testing.T) {
 
-	opts := EngineOptionsDefault
+	opts := OptionsDefault
 	opts.O = &fake.ExpiringOrigin{}
 
 	e, err := NewEngine(&opts)
@@ -190,7 +225,7 @@ func TestEngineTTL(t *testing.T) {
 func BenchmarkHotKey(b *testing.B) {
 
 	N := 10000
-	opts := EngineOptionsDefault
+	opts := OptionsDefault
 	opts.O = &fake.NoDelayOrigin{}
 	e, _ := NewEngine(&opts)
 
@@ -212,7 +247,7 @@ func BenchmarkHotKey(b *testing.B) {
 func BenchmarkErrorKey(b *testing.B) {
 
 	N := 10000
-	opts := EngineOptionsDefault
+	opts := OptionsDefault
 	opts.O = &fake.NoDelayOrigin{}
 	e, _ := NewEngine(&opts)
 

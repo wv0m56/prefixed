@@ -10,7 +10,7 @@ import (
 
 func TestTTL(t *testing.T) {
 
-	opts := EngineOptionsDefault
+	opts := OptionsDefault
 	opts.O = &fake.NoDelayOrigin{}
 	opts.TtlTickStep = 1 * time.Millisecond
 	e, err := NewEngine(&opts)
@@ -33,7 +33,7 @@ func TestTTL(t *testing.T) {
 
 	vals := ""
 	e.rwm.RLock()
-	for it := e.s.First(); it != nil; it = it.Next() {
+	for it := e.dataStore.First(); it != nil; it = it.Next() {
 		vals += it.Key()
 	}
 	e.rwm.RUnlock()
@@ -43,7 +43,7 @@ func TestTTL(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 	vals = ""
 	e.rwm.RLock()
-	for it := e.s.First(); it != nil; it = it.Next() {
+	for it := e.dataStore.First(); it != nil; it = it.Next() {
 		vals += it.Key()
 	}
 	e.rwm.RUnlock()
@@ -52,7 +52,7 @@ func TestTTL(t *testing.T) {
 	time.Sleep(6 * time.Millisecond)
 	vals = ""
 	e.rwm.RLock()
-	for it := e.s.First(); it != nil; it = it.Next() {
+	for it := e.dataStore.First(); it != nil; it = it.Next() {
 		vals += it.Key()
 	}
 	e.rwm.RUnlock()

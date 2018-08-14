@@ -97,3 +97,21 @@ func (_ *ExpiringOrigin) Fetch(key string, _ time.Duration) (io.ReadCloser, *tim
 	t := time.Now().Add(24 * time.Hour)
 	return &nodelayReadCloser{bytes.NewReader([]byte(key)), key}, &t
 }
+
+// Origin whose value/payload is always a 1000 bytes long dummy content for
+// all keys.
+type ThousandBytesValOrigin struct{}
+
+func (_ *ThousandBytesValOrigin) Fetch(_ string, _ time.Duration) (io.ReadCloser, *time.Time) {
+	return &thousandBytesValReadCloser{bytes.NewReader(make([]byte, 1000))}, nil
+}
+
+type thousandBytesValReadCloser struct{ *bytes.Reader }
+
+func (_ *thousandBytesValReadCloser) Close() error {
+	return nil
+}
+
+func (tbrc *thousandBytesValReadCloser) Read(p []byte) (int, error) {
+	return tbrc.Read(p)
+}

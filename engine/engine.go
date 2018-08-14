@@ -18,46 +18,57 @@ import (
 // Engine wraps a skiplist data structure with all the goodies
 // associated with caching (TTL, cache-filling mechanism, etc).
 type Engine struct {
-	rwm      *sync.RWMutex
-	s        *skiplist.Skiplist
-	fillCond map[string]*condition
-	ts       *ttlStore
-	ep       *evictPolicy
-	o        origin.Origin
+	rwm       *sync.RWMutex
+	dataStore *skiplist.Skiplist
+	fillCond  map[string]*condition
+	ts        *ttlStore
+	ep        *evictPolicy
+	o         origin.Origin
 	// c      client.ClientPlugin
-	timeout time.Duration
+	timeout             time.Duration
+	maxPayloadTotalSize int64
 }
 
-type EngineOptions struct {
-	ExpectedLen                int64
+type Options struct {
+
+	// ExpectedLen is the number of expected (k, v) rows in the cache.
+	// It's better to overestimate ExpectedLen than to underestimate it.
+	// NewEngine panics if ExpectedLen less than 1024 (pointless).
+	ExpectedLen int64
+
 	EvictPolicyRelevanceWindow time.Duration
 	EvictPolicyTickStep        time.Duration
 	TtlTickStep                time.Duration
 	CacheFillTimeout           time.Duration
-	MaxPayloadTotal            int64
-	O                          origin.Origin
+
+	// MaxPayloadTotalSize is the total sum of the length of all
+	// value/payload (in bytes) from all rows.
+	// It must be greater than 10*1000*1000 bytes.
+	MaxPayloadTotalSize int64
+
+	O origin.Origin
 }
 
-var EngineOptionsDefault EngineOptions = EngineOptions{
-
-	// It's better to overestimate ExpectedLen than to underestimate it.
-	// NewEngine panics if ExpectedLen less than 1024 (pointless).
-	ExpectedLen: 10 * 1000 * 1000,
-
+var OptionsDefault = Options{
+	ExpectedLen:                10 * 1000 * 1000,
 	EvictPolicyRelevanceWindow: 24 * 3600 * time.Second,
 	EvictPolicyTickStep:        1 * time.Second,
 	TtlTickStep:                250 * time.Millisecond,
 	CacheFillTimeout:           250 * time.Millisecond,
-	MaxPayloadTotal:            4 * 1000 * 1000 * 1000, // 4G, dunno
+	MaxPayloadTotalSize:        4 * 1000 * 1000 * 1000, // 4G, dunno
 	O:                          &fake.DelayedOrigin{},  // TODO: placeholder, must fix
 }
 
 // NewEngine creates a new cache engine with a skiplist as the underlying data
 // structure.
-func NewEngine(opts *EngineOptions) (*Engine, error) {
+func NewEngine(opts *Options) (*Engine, error) {
 
 	if opts.ExpectedLen < 1024 {
 		return nil, errors.New("ExpectedLen must be >= 1024")
+	}
+
+	if opts.MaxPayloadTotalSize < 10*1000*1000 {
+		return nil, errors.New("MaxPayloadTotalSize must be >= 10*1000*1000 bytes")
 	}
 
 	// log2(ExpectedLen)
@@ -86,17 +97,18 @@ func NewEngine(opts *EngineOptions) (*Engine, error) {
 			boom.NewCountMinSketch(0.001, 0.99),
 			&linkedList{},
 			map[string]*llElement{},
-			nil,
 			opts.EvictPolicyRelevanceWindow,
+			map[string]struct{}{},
 		},
 
 		opts.O,
 
 		opts.CacheFillTimeout,
+
+		opts.MaxPayloadTotalSize,
 	}
 
 	e.ts.e = e
-	e.ep.e = e
 
 	go e.ts.startLoop(opts.TtlTickStep)
 	go e.ep.startLoop(opts.EvictPolicyTickStep)
@@ -150,7 +162,7 @@ func (e *Engine) get(key string) (*bytes.Reader, error) {
 func (e *Engine) tryget(key string) *bytes.Reader {
 	e.rwm.RLock()
 	defer e.rwm.RUnlock()
-	if el, ok := e.s.Get(key); ok && el != nil {
+	if el, ok := e.dataStore.Get(key); ok && el != nil {
 		return el.ValReader()
 	}
 	return nil
@@ -162,7 +174,7 @@ func (e *Engine) tryget(key string) *bytes.Reader {
 func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
 
 	e.rwm.RLock()
-	els := e.s.GetByPrefix(p)
+	els := e.dataStore.GetByPrefix(p)
 	e.rwm.RUnlock()
 
 	if els == nil {
@@ -182,7 +194,7 @@ func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
 func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 
 	e.rwm.RLock()
-	els := e.s.GetByPrefix(p)
+	els := e.dataStore.GetByPrefix(p)
 	e.rwm.RUnlock()
 
 	if els == nil {
@@ -200,7 +212,7 @@ func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 func (e *Engine) cacheFill(key string) (*bytes.Reader, error) {
 
 	e.rwm.Lock()
-	if el, ok := e.s.Get(key); ok && el != nil {
+	if el, ok := e.dataStore.Get(key); ok && el != nil {
 		e.rwm.Unlock()
 		return el.ValReader(), nil
 	}
@@ -249,6 +261,10 @@ func (e *Engine) firstFill(key string) {
 	} else {
 
 		e.rwm.Lock()
+
+		if rowPayloadSize := rw.b.Len(); e.dataStore.PayloadSize()+int64(rowPayloadSize) > e.maxPayloadTotalSize {
+			e.evictUntilFree(rowPayloadSize)
+		}
 
 		if exp != nil && exp.After(time.Now()) {
 			rw.Commit()
@@ -301,7 +317,7 @@ func (e *Engine) blockUntilFilled(key string) (r *bytes.Reader, err error) {
 // invoked by the ttl loop
 func (e *Engine) delWithoutTTLRemoval(keys ...string) {
 	for _, k := range keys {
-		if el := e.s.Del(k); el != nil {
+		if el := e.dataStore.Del(k); el != nil {
 			go e.ep.removeFromWindow(el.Key()) // probabilistic
 		}
 	}
@@ -322,5 +338,90 @@ func (rw *rowWriter) Write(p []byte) (n int, err error) {
 
 // no locking.
 func (rw *rowWriter) Commit() {
-	rw.e.s.Upsert(rw.key, rw.b.Bytes())
+	rw.e.dataStore.Upsert(rw.key, rw.b.Bytes())
+}
+
+func (e *Engine) evictUntilFree(wantedFreeSpace int) {
+
+	var enoughFreed bool
+
+	// try searching ep graveyard
+	//*******************************************************
+	e.ep.Lock()
+	for k := range e.ep.graveyard {
+		if delEl := e.dataStore.Del(k); delEl != nil {
+
+			{ // del from ttlStore
+				de, _ := e.ts.m[k]
+				e.ts.DelElement(de)
+				delete(e.ts.m, k)
+			}
+
+			go e.ep.removeFromWindow(k)
+
+			if freeSpace := e.maxPayloadTotalSize - e.dataStore.PayloadSize(); freeSpace > int64(wantedFreeSpace) {
+				enoughFreed = true
+				break
+			}
+		}
+	}
+	e.ep.Unlock()
+	//*******************************************************
+
+	del := func(key string) {
+		e.dataStore.Del(key)
+
+		{ // del from ttlStore
+			de, _ := e.ts.m[key]
+			e.ts.DelElement(de)
+			delete(e.ts.m, key)
+		}
+
+		go e.ep.removeFromWindow(key)
+	}
+
+	// try ttl list
+	//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+	if !enoughFreed {
+		e.ts.Lock()
+
+		for it := e.ts.First(); it != nil; it = it.Next() {
+
+			if key := it.Val(); !e.ep.isRelevant(key) { // bound for expiry and not relevant
+
+				del(key)
+
+				if freeSpace := e.maxPayloadTotalSize - e.dataStore.PayloadSize(); freeSpace > int64(wantedFreeSpace) {
+					enoughFreed = true
+					break
+				}
+			}
+		}
+		e.ts.Unlock()
+	}
+	//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+	// iterate over dataStore, indiscriminate, very inefficient at this point
+	// time to rebuild cache with bigger RAM
+	if !enoughFreed {
+		e.ep.Lock()
+
+		// still holding top level lock
+		for i := 1; !enoughFreed; i *= 4 {
+
+			for it := e.dataStore.First(); it != nil; it = it.Next() {
+
+				if count := e.ep.cms.Count([]byte(it.Key())); count <= uint64(i) {
+
+					del(it.Key())
+
+					if freeSpace := e.maxPayloadTotalSize - e.dataStore.PayloadSize(); freeSpace > int64(wantedFreeSpace) {
+						enoughFreed = true
+						break
+					}
+				}
+			}
+		}
+		e.ep.Unlock()
+	}
 }
