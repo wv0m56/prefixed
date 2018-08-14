@@ -167,6 +167,9 @@ func TestEngineTTL(t *testing.T) {
 	assert.Equal(t, -1.0, secs[0])
 	assert.True(t, roughly(24*3600, secs[1]))
 
+	_, sec, _ := e.GetWithTTL("key")
+	assert.True(t, roughly(24*3600, sec))
+
 	opts.O = &fake.NoDelayOrigin{}
 	e, err = NewEngine(&opts)
 	assert.Nil(t, err)
@@ -174,6 +177,12 @@ func TestEngineTTL(t *testing.T) {
 	e.Get("pppp")
 	secs = e.GetTTL("zzzz", "pppp")
 	assert.Equal(t, -1.0, secs[1])
+	_, sec, _ = e.GetWithTTL("zzz")
+	assert.Equal(t, -1.0, sec)
+
+	_, sec, err = e.GetWithTTL("bench error") // knowing that this key triggers error
+	assert.NotNil(t, err)
+	assert.Equal(t, -1.0, sec)
 }
 
 // Test how much time N concurrent calls to CacheFill spend resolving lock

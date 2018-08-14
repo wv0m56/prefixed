@@ -120,6 +120,16 @@ func (e *Engine) GetCopy(key string) ([]byte, error) {
 	return ioutil.ReadAll(r)
 }
 
+// GetWithTTL calls Get and GetTTL and returns the combined info.
+func (e *Engine) GetWithTTL(key string) (*bytes.Reader, float64, error) {
+	r, err := e.get(key)
+	if err != nil {
+		return nil, -1, err
+	}
+	ttl := e.GetTTL(key)
+	return r, ttl[0], nil
+}
+
 func (e *Engine) get(key string) (*bytes.Reader, error) {
 
 	defer e.ep.addToWindow(key)

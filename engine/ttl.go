@@ -35,7 +35,6 @@ func (e *Engine) GetTTL(keys ...string) []float64 {
 			t = append(t, -1)
 		}
 	}
-
 	return t
 }
 
