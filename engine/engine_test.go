@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"strconv"
 	"sync"
@@ -13,6 +14,13 @@ import (
 )
 
 func TestSimpleIO(t *testing.T) {
+
+	fmt.Println("//")
+	fmt.Println("// Tests include time sensitive features. It is assumed that")
+	fmt.Println("// they are performed on a computer with a modern CPU.")
+	fmt.Println("// Failing that, executions might fall behind and produce")
+	fmt.Println("// failures when nothing is wrong.")
+	fmt.Println("//")
 
 	e, err := NewEngine(&OptionsDefault)
 	assert.Nil(t, err)
@@ -91,7 +99,7 @@ func TestHotKey(t *testing.T) {
 	e, err := NewEngine(&OptionsDefault)
 	assert.Nil(t, err)
 	wg := sync.WaitGroup{}
-	N := 8000
+	N := 4000
 	wg.Add(N)
 	for i := 0; i < N; i++ {
 		go func() {
