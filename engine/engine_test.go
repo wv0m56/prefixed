@@ -139,6 +139,7 @@ func TestEvictUponDelete(t *testing.T) {
 	eng.GetCopy("abc")
 	eng.Get("abc")
 
+	time.Sleep(10 * time.Millisecond) // wait a bit since stats is updated via goroutine
 	eng.ep.Lock()
 	ptr, ok := eng.ep.listElPtr["abc"]
 	assert.True(t, ok)

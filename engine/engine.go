@@ -144,7 +144,7 @@ func (e *Engine) GetWithTTL(key string) (*bytes.Reader, float64, error) {
 
 func (e *Engine) get(key string) (*bytes.Reader, error) {
 
-	e.ep.addToWindow(key)
+	go e.ep.addToWindow(key)
 
 	r := e.tryget(key)
 	if r != nil { // cache hit
@@ -184,7 +184,7 @@ func (e *Engine) GetByPrefix(p string) []*bytes.Reader {
 	rs := make([]*bytes.Reader, len(els))
 	for i, v := range els {
 		rs[i] = v.ValReader()
-		e.ep.addToWindow(v.Key())
+		go e.ep.addToWindow(v.Key())
 	}
 	return rs
 }
@@ -204,7 +204,7 @@ func (e *Engine) GetCopiesByPrefix(p string) [][]byte {
 	rs := make([][]byte, len(els))
 	for i, v := range els {
 		rs[i] = v.ValCopy()
-		e.ep.addToWindow(v.Key())
+		go e.ep.addToWindow(v.Key())
 	}
 	return rs
 }
