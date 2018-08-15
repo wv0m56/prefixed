@@ -146,7 +146,7 @@ func TestEvictUponDelete(t *testing.T) {
 	assert.Equal(t, uint64(4), eng.ep.cms.Count([]byte("abc")))
 	eng.ep.Unlock()
 
-	time.Sleep(opts.EvictPolicyRelevanceWindow)
+	time.Sleep(opts.EvictPolicyRelevanceWindow + 10*time.Millisecond)
 
 	eng.ep.Lock()
 	ptr, ok = eng.ep.listElPtr["abc"]
@@ -156,20 +156,32 @@ func TestEvictUponDelete(t *testing.T) {
 	eng.ep.Unlock()
 }
 
-func TestSimpleEvictFullCache(t *testing.T) {
+func TestSimpleEvictUponFullCache(t *testing.T) {
 
 	opts := OptionsDefault
-	opts.O = &fake.ThousandBytesValOrigin{}
+	opts.O = &fake.ZeroesPayloadOrigin{}
 	opts.MaxPayloadTotalSize = 10 * 1000 * 1000
+	opts.EvictPolicyTickStep = 10 * time.Millisecond
+
+	// large value for -race
+	opts.EvictPolicyRelevanceWindow = 1 * time.Second
 
 	e, err := NewEngine(&opts)
 	assert.Nil(t, err)
 
-	for i := 0; i < 10000; i++ {
+	e.ep.Lock()
+	assert.Equal(t, 0, len(e.ep.graveyard))
+	e.ep.Unlock()
+
+	for i := 0; i < 1000; i++ {
 		e.Get(strconv.Itoa(i))
 	}
 
 	assert.Equal(t, opts.MaxPayloadTotalSize, e.dataStore.PayloadSize())
+
+	e.ep.Lock()
+	assert.Equal(t, 0, len(e.ep.graveyard))
+	e.ep.Unlock()
 
 	e.Get("abc")
 	r, err := e.Get("abc")
@@ -177,14 +189,23 @@ func TestSimpleEvictFullCache(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	_, err = r.WriteTo(buf)
 	assert.Nil(t, err)
-	assert.True(t, bytes.Equal(make([]byte, 1000), buf.Bytes()))
-}
+	assert.True(t, bytes.Equal(make([]byte, 10000), buf.Bytes()))
 
-// TODO:
-// TODO:
-func TestStressEvictPolicy(t *testing.T) {
+	e.ep.Lock()
+	assert.Equal(t, 0, len(e.ep.graveyard))
+	e.ep.Unlock()
 
-	assert.True(t, true)
+	time.Sleep(opts.EvictPolicyRelevanceWindow)
+
+	e.ep.Lock()
+	assert.True(t, len(e.ep.graveyard) > 0)
+	e.ep.Unlock()
+
+	for i := 888888; i < 888888+100; i++ {
+		_, err = e.Get(strconv.Itoa(i))
+		assert.Nil(t, err)
+		time.Sleep(1 * time.Millisecond)
+	}
 }
 
 // API + internals

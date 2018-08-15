@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math/rand"
 	"time"
 )
 
@@ -14,7 +15,9 @@ type DelayedOrigin struct{}
 
 // Fetch fetches dummy data. "error" as key simulates a network error should
 // the returned io.ReadCloser is read. Else returns &bytes.Reader([]byte(key))
-// implementing a no-op Close() method with timeout delay.
+// implementing a no-op Close() method with 100ms delay. If timeout has
+// elapsed and Fetch has not finished fetching data, it terminates and returns
+// (err, nil).
 func (do *DelayedOrigin) Fetch(key string, timeout time.Duration) (io.ReadCloser, *time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	return &delayedReadCloser{
@@ -98,20 +101,40 @@ func (_ *ExpiringOrigin) Fetch(key string, _ time.Duration) (io.ReadCloser, *tim
 	return &nodelayReadCloser{bytes.NewReader([]byte(key)), key}, &t
 }
 
-// Origin whose value/payload is always a 1000 bytes long dummy content for
+// Origin whose value/payload is always a 10000 bytes long dummy content for
 // all keys.
-type ThousandBytesValOrigin struct{}
+type ZeroesPayloadOrigin struct{}
 
-func (_ *ThousandBytesValOrigin) Fetch(_ string, _ time.Duration) (io.ReadCloser, *time.Time) {
-	return &thousandBytesValReadCloser{bytes.NewReader(make([]byte, 1000))}, nil
+func (_ *ZeroesPayloadOrigin) Fetch(_ string, _ time.Duration) (io.ReadCloser, *time.Time) {
+	return &zeroesPayloadReadCloser{bytes.NewReader(make([]byte, 10000))}, nil
 }
 
-type thousandBytesValReadCloser struct{ *bytes.Reader }
+type zeroesPayloadReadCloser struct{ *bytes.Reader }
 
-func (_ *thousandBytesValReadCloser) Close() error {
+func (_ *zeroesPayloadReadCloser) Close() error {
 	return nil
 }
 
-func (tbrc *thousandBytesValReadCloser) Read(p []byte) (int, error) {
+func (tbrc *zeroesPayloadReadCloser) Read(p []byte) (int, error) {
 	return tbrc.Read(p)
+}
+
+// An origin which returns data with random expiry and random
+// 1000-2000 bytes long payload.
+type RandomOrigin struct{}
+
+func (_ *RandomOrigin) Fetch(_ string, _ time.Duration) (io.ReadCloser, *time.Time) {
+	t := time.Now().Add(time.Duration(rand.Int63n(30 * int64(time.Millisecond))))
+	b := make([]byte, 1000+rand.Intn(1000))
+	return &randomReadCloser{bytes.NewReader(b)}, &t
+}
+
+type randomReadCloser struct{ *bytes.Reader }
+
+func (_ *randomReadCloser) Close() error {
+	return nil
+}
+
+func (rrc *randomReadCloser) Read(p []byte) (int, error) {
+	return rrc.Read(p)
 }

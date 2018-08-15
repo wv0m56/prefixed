@@ -31,8 +31,14 @@ func (ep *evictPolicy) isRelevant(key string) bool {
 }
 
 func (ep *evictPolicy) addToWindow(key string) {
+
 	ep.Lock()
 	defer ep.Unlock()
+
+	if ptr, ok := ep.listElPtr[key]; ok {
+		ep.ll.delByPtr(ptr)
+		// no need to delete map element, overwritten later
+	}
 
 	ep.cms.Add([]byte(key))
 	ptr := ep.ll.addToBack(key)
@@ -40,15 +46,17 @@ func (ep *evictPolicy) addToWindow(key string) {
 	delete(ep.graveyard, key)
 }
 
-func (ep *evictPolicy) removeFromWindow(key string) {
+func (ep *evictPolicy) dataDeletion(key string) {
 	ep.Lock()
 	defer ep.Unlock()
 
-	_ = ep.cms.TestAndRemoveAll([]byte(key))
-	if ptr, ok := ep.listElPtr[key]; ok {
-		ep.ll.delByPtr(ptr)
-	}
-	delete(ep.listElPtr, key)
+	ep.del(key)
+}
+
+// no lock
+func (ep *evictPolicy) outRelevanceWindow(key string) {
+
+	ep.del(key)
 
 	// maintain graveyard size below max
 	if len(ep.graveyard) == graveyardSize {
@@ -63,16 +71,21 @@ func (ep *evictPolicy) removeFromWindow(key string) {
 	ep.graveyard[key] = struct{}{}
 }
 
+// no lock
+func (ep *evictPolicy) del(key string) {
+	_ = ep.cms.TestAndRemoveAll([]byte(key))
+	if ptr, ok := ep.listElPtr[key]; ok {
+		ep.ll.delByPtr(ptr)
+	}
+	delete(ep.listElPtr, key)
+}
+
 func (ep *evictPolicy) startLoop(step time.Duration) {
 
 	for range time.Tick(step) {
 		ep.Lock()
-
-		for f := ep.ll.front; f != nil && f.key.Add(ep.relevanceWindow).After(time.Now()); f = ep.ll.front {
-
-			_ = ep.cms.TestAndRemove([]byte(f.val), 1)
-			ep.ll.delFront()
-			delete(ep.listElPtr, f.val)
+		for it := ep.ll.front; it != nil && it.lastReadTime.Add(ep.relevanceWindow).Before(time.Now()); it = it.next {
+			ep.outRelevanceWindow(it.val)
 		}
 		ep.Unlock()
 	}
@@ -84,10 +97,10 @@ type linkedList struct {
 }
 
 type llElement struct {
-	key  time.Time
-	val  string
-	prev *llElement
-	next *llElement
+	lastReadTime time.Time // last accessed time
+	val          string
+	prev         *llElement
+	next         *llElement
 }
 
 // approximately sorted

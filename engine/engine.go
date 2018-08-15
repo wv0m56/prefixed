@@ -144,7 +144,7 @@ func (e *Engine) GetWithTTL(key string) (*bytes.Reader, float64, error) {
 
 func (e *Engine) get(key string) (*bytes.Reader, error) {
 
-	defer e.ep.addToWindow(key)
+	e.ep.addToWindow(key)
 
 	r := e.tryget(key)
 	if r != nil { // cache hit
@@ -318,7 +318,7 @@ func (e *Engine) blockUntilFilled(key string) (r *bytes.Reader, err error) {
 func (e *Engine) delWithoutTTLRemoval(keys ...string) {
 	for _, k := range keys {
 		if el := e.dataStore.Del(k); el != nil {
-			go e.ep.removeFromWindow(el.Key()) // probabilistic
+			go e.ep.dataDeletion(el.Key()) // probabilistic
 		}
 	}
 }
@@ -357,7 +357,7 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 				delete(e.ts.m, k)
 			}
 
-			go e.ep.removeFromWindow(k)
+			go e.ep.dataDeletion(k)
 
 			if freeSpace := e.maxPayloadTotalSize - e.dataStore.PayloadSize(); freeSpace > int64(wantedFreeSpace) {
 				enoughFreed = true
@@ -377,7 +377,7 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 			delete(e.ts.m, key)
 		}
 
-		go e.ep.removeFromWindow(key)
+		go e.ep.dataDeletion(key)
 	}
 
 	// try ttl list

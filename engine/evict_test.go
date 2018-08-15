@@ -43,7 +43,7 @@ func TestEvictPolicy(t *testing.T) {
 
 	ep.Unlock()
 
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(60 * time.Millisecond)
 
 	ep.Lock()
 
