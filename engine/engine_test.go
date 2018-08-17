@@ -13,14 +13,59 @@ import (
 	"github.com/wv0m56/prefixed/plugin/origin/fake"
 )
 
-func TestSimpleIO(t *testing.T) {
-
+func TestOptionValuesSanity(t *testing.T) {
 	fmt.Println("//")
 	fmt.Println("// Tests include time sensitive features. It is assumed that")
 	fmt.Println("// they are performed on a computer with a modern CPU.")
 	fmt.Println("// Failing that, executions might fall behind and produce")
 	fmt.Println("// failures when nothing is wrong.")
 	fmt.Println("//")
+
+	opts := OptionsDefault
+	opts.ExpectedLen = 999
+	e, err := NewEngine(&opts)
+	assert.Nil(t, e)
+	assert.NotNil(t, err)
+
+	opts = OptionsDefault
+	opts.MaxPayloadTotalSize = 9 * 1000 * 1000
+	e, err = NewEngine(&opts)
+	assert.Nil(t, e)
+	assert.NotNil(t, err)
+
+	opts = OptionsDefault
+	opts.CacheFillTimeout = 9 * time.Millisecond
+	e, err = NewEngine(&opts)
+	assert.Nil(t, e)
+	assert.NotNil(t, err)
+
+	opts = OptionsDefault
+	opts.TtlTickStep = 999 * time.Microsecond
+	e, err = NewEngine(&opts)
+	assert.Nil(t, e)
+	assert.NotNil(t, err)
+
+	opts = OptionsDefault
+	opts.EvictPolicyTickStep = 999 * time.Microsecond
+	e, err = NewEngine(&opts)
+	assert.Nil(t, e)
+	assert.NotNil(t, err)
+
+	opts = OptionsDefault
+	opts.EvictPolicyRelevanceWindow = 99 * time.Millisecond
+	e, err = NewEngine(&opts)
+	assert.Nil(t, e)
+	assert.NotNil(t, err)
+
+	opts = OptionsDefault
+	opts.EvictPolicyRelevanceWindow = 100 * time.Millisecond
+	opts.EvictPolicyTickStep = 101 * time.Millisecond
+	e, err = NewEngine(&opts)
+	assert.Nil(t, e)
+	assert.NotNil(t, err)
+}
+
+func TestSimpleIO(t *testing.T) {
 
 	e, err := NewEngine(&OptionsDefault)
 	assert.Nil(t, err)

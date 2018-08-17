@@ -63,12 +63,33 @@ var OptionsDefault = Options{
 // structure.
 func NewEngine(opts *Options) (*Engine, error) {
 
-	if opts.ExpectedLen < 1024 {
-		return nil, errors.New("ExpectedLen must be >= 1024")
-	}
+	{ // sanity checks
 
-	if opts.MaxPayloadTotalSize < 10*1000*1000 {
-		return nil, errors.New("MaxPayloadTotalSize must be >= 10*1000*1000 bytes")
+		if opts.ExpectedLen < 1024 {
+			return nil, errors.New("ExpectedLen must be >= 1024")
+		}
+
+		if opts.MaxPayloadTotalSize < 10*1000*1000 {
+			return nil, errors.New("MaxPayloadTotalSize must be >= 10*1000*1000 bytes")
+		}
+
+		if opts.CacheFillTimeout < 10*time.Millisecond {
+			return nil, errors.New("cachefill timeout too small")
+		}
+
+		if opts.TtlTickStep < 1*time.Millisecond {
+			return nil, errors.New("TTL tick step too small")
+		}
+
+		if opts.EvictPolicyTickStep < 1*time.Millisecond ||
+			opts.EvictPolicyTickStep > opts.EvictPolicyRelevanceWindow {
+
+			return nil, errors.New("evict policy tick step too small or bigger than relevance window")
+		}
+
+		if opts.EvictPolicyRelevanceWindow < 100*time.Millisecond {
+			return nil, errors.New("evict policy relevance window too small")
+		}
 	}
 
 	// log2(ExpectedLen)
@@ -368,8 +389,8 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 
 			for it := e.dataStore.First(); it != nil; it = it.Next() {
 
-				if count := e.ep.cms.Count([]byte(it.Key())); !e.ep.isRelevant(it.Key()) ||
-					count <= uint64(i) {
+				if !e.ep.isRelevant(it.Key()) ||
+					e.ep.cms.Count([]byte(it.Key())) <= uint64(i) {
 
 					e.dataStore.Del(it.Key())
 

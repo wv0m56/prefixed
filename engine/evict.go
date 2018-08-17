@@ -7,7 +7,7 @@ import (
 	"github.com/tylertreat/BoomFilters"
 )
 
-const graveyardSize = 100
+const graveyardSize = 1000
 
 // evictPolicy is the data structure determining which row of the cache should
 // be removed in case of space contention. evictPolicy maintains a
