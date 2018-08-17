@@ -1,15 +1,12 @@
 package engine
 
 import (
-	"sync"
 	"time"
 
 	"github.com/wv0m56/prefixed/skiplist"
 )
 
 func (e *Engine) setExpiry(key string, expiry time.Time) {
-	e.ts.Lock()
-	defer e.ts.Unlock()
 
 	if de, ok := e.ts.m[key]; ok {
 		e.ts.DelElement(de)
@@ -22,8 +19,6 @@ func (e *Engine) setExpiry(key string, expiry time.Time) {
 // the order in which keys are passed into args.
 // Keys without TTL yields negative values.
 func (e *Engine) GetTTL(keys ...string) []float64 {
-	e.ts.Lock()
-	defer e.ts.Unlock()
 
 	var t []float64
 	now := time.Now()
@@ -39,7 +34,6 @@ func (e *Engine) GetTTL(keys ...string) []float64 {
 }
 
 type ttlStore struct {
-	sync.Mutex
 	skiplist.Duplist
 	m map[string]*skiplist.DupElement
 	e *Engine
@@ -49,23 +43,26 @@ type ttlStore struct {
 func (ts *ttlStore) startLoop(step time.Duration) {
 
 	for range time.Tick(step) {
-		ts.Lock()
 
+		var somethingExpired bool
 		now := time.Now()
-		var dataKeysToDelete []string
-		for f := ts.First(); f != nil && now.After(f.Key()); f = ts.First() {
 
-			dataKeysToDelete = append(dataKeysToDelete, f.Val())
-			ts.DelFirst()
-			delete(ts.m, f.Val())
+		ts.e.rwm.RLock()
+		if f := ts.First(); f != nil && now.After(f.Key()) {
+			somethingExpired = true
 		}
+		ts.e.rwm.RUnlock()
 
-		if len(dataKeysToDelete) > 0 {
+		if somethingExpired {
 			ts.e.rwm.Lock()
-			ts.e.delWithoutTTLRemoval(dataKeysToDelete...)
+			for f := ts.First(); f != nil && now.After(f.Key()); f = ts.First() {
+				ts.DelFirst()
+				delete(ts.m, f.Val())
+				if el := ts.e.dataStore.Del(f.Val()); el != nil {
+					go ts.e.ep.dataDeletion(el.Key()) // stats, no need to be precise
+				}
+			}
 			ts.e.rwm.Unlock()
 		}
-
-		ts.Unlock()
 	}
 }

@@ -210,7 +210,7 @@ func TestSimpleEvictUponFullCache(t *testing.T) {
 	assert.True(t, len(e.ep.graveyard) > 0)
 	e.ep.Unlock()
 
-	for i := 888888; i < 888888+100; i++ {
+	for i := 888888; i < 888888+150; i++ {
 		_, err = e.Get(strconv.Itoa(i))
 		assert.Nil(t, err)
 		time.Sleep(1 * time.Millisecond)

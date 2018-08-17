@@ -82,8 +82,6 @@ func NewEngine(opts *Options) (*Engine, error) {
 		make(map[string]*condition),
 
 		&ttlStore{
-			sync.Mutex{},
-
 			// assume 50% of elements will be TTL'ed
 			// configurable later
 			*(skiplist.NewDuplist(n - 1)),
@@ -314,15 +312,6 @@ func (e *Engine) blockUntilFilled(key string) (r *bytes.Reader, err error) {
 	return
 }
 
-// invoked by the ttl loop
-func (e *Engine) delWithoutTTLRemoval(keys ...string) {
-	for _, k := range keys {
-		if el := e.dataStore.Del(k); el != nil {
-			go e.ep.dataDeletion(el.Key()) // probabilistic
-		}
-	}
-}
-
 type rowWriter struct {
 	key string
 	b   *bytes.Buffer
@@ -341,6 +330,7 @@ func (rw *rowWriter) Commit() {
 	rw.e.dataStore.Upsert(rw.key, rw.b.Bytes())
 }
 
+// still holding top level lock throughout
 func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 
 	var enoughFreed bool
@@ -349,6 +339,7 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 	//*******************************************************
 	e.ep.Lock()
 	for k := range e.ep.graveyard {
+
 		if delEl := e.dataStore.Del(k); delEl != nil {
 
 			{ // del from ttlStore
@@ -368,52 +359,27 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 	e.ep.Unlock()
 	//*******************************************************
 
-	del := func(key string) {
-		e.dataStore.Del(key)
-
-		{ // del from ttlStore
-			de, _ := e.ts.m[key]
-			e.ts.DelElement(de)
-			delete(e.ts.m, key)
-		}
-
-		go e.ep.dataDeletion(key)
-	}
-
-	// try ttl list
-	//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-	if !enoughFreed {
-		e.ts.Lock()
-
-		for it := e.ts.First(); it != nil; it = it.Next() {
-
-			if key := it.Val(); !e.ep.isRelevant(key) { // bound for expiry and not relevant
-
-				del(key)
-
-				if freeSpace := e.maxPayloadTotalSize - e.dataStore.PayloadSize(); freeSpace > int64(wantedFreeSpace) {
-					enoughFreed = true
-					break
-				}
-			}
-		}
-		e.ts.Unlock()
-	}
-	//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
 	// iterate over dataStore, indiscriminate, very inefficient at this point
 	// time to rebuild cache with bigger RAM
 	if !enoughFreed {
 		e.ep.Lock()
 
-		// still holding top level lock
 		for i := 1; !enoughFreed; i *= 4 {
 
 			for it := e.dataStore.First(); it != nil; it = it.Next() {
 
-				if count := e.ep.cms.Count([]byte(it.Key())); count <= uint64(i) {
+				if count := e.ep.cms.Count([]byte(it.Key())); !e.ep.isRelevant(it.Key()) ||
+					count <= uint64(i) {
 
-					del(it.Key())
+					e.dataStore.Del(it.Key())
+
+					{ // del from ttlStore
+						de, _ := e.ts.m[it.Key()]
+						e.ts.DelElement(de)
+						delete(e.ts.m, it.Key())
+					}
+
+					go e.ep.dataDeletion(it.Key())
 
 					if freeSpace := e.maxPayloadTotalSize - e.dataStore.PayloadSize(); freeSpace > int64(wantedFreeSpace) {
 						enoughFreed = true

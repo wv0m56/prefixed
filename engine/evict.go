@@ -23,13 +23,11 @@ type evictPolicy struct {
 }
 
 func (ep *evictPolicy) isRelevant(key string) bool {
-	ep.Lock()
-	defer ep.Unlock()
-
 	_, ok := ep.listElPtr[key]
 	return ok
 }
 
+// lock ok because called from goroutine
 func (ep *evictPolicy) addToWindow(key string) {
 
 	ep.Lock()
@@ -46,6 +44,7 @@ func (ep *evictPolicy) addToWindow(key string) {
 	delete(ep.graveyard, key)
 }
 
+// lock ok because called from goroutine
 func (ep *evictPolicy) dataDeletion(key string) {
 	ep.Lock()
 	defer ep.Unlock()
@@ -53,7 +52,6 @@ func (ep *evictPolicy) dataDeletion(key string) {
 	ep.del(key)
 }
 
-// no lock
 func (ep *evictPolicy) outRelevanceWindow(key string) {
 
 	ep.del(key)
@@ -71,7 +69,6 @@ func (ep *evictPolicy) outRelevanceWindow(key string) {
 	ep.graveyard[key] = struct{}{}
 }
 
-// no lock
 func (ep *evictPolicy) del(key string) {
 	_ = ep.cms.TestAndRemoveAll([]byte(key))
 	if ptr, ok := ep.listElPtr[key]; ok {
