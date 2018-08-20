@@ -50,6 +50,7 @@ func (ep *evictPolicy) dataDeletion(key string) {
 	defer ep.Unlock()
 
 	ep.del(key)
+	delete(ep.graveyard, key)
 }
 
 func (ep *evictPolicy) outRelevanceWindow(key string) {

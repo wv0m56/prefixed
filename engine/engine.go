@@ -412,3 +412,23 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 		e.ep.Unlock()
 	}
 }
+
+// Invalidate deletes keys from the data, TTL, and evict policy store.
+// Only invoke Invalidate as a last resort for manual intervention.
+// Normally, control the invalidation process by setting sensible TTL
+// values at origin.
+func (e *Engine) Invalidate(keys ...string) {
+	e.rwm.Lock()
+	for _, v := range keys {
+		e.dataStore.Del(v)
+
+		{ // del from ttlStore
+			de, _ := e.ts.m[v]
+			e.ts.DelElement(de)
+			delete(e.ts.m, v)
+		}
+
+		go e.ep.dataDeletion(v)
+	}
+	e.rwm.Unlock()
+}

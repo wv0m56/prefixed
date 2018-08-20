@@ -13,6 +13,7 @@ import (
 	"github.com/wv0m56/prefixed/plugin/origin/fake"
 )
 
+// basically tests with opt values near the allowed limit
 func TestStressEngine(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
