@@ -66,3 +66,10 @@ func (ts *ttlStore) startLoop(step time.Duration) {
 		}
 	}
 }
+
+// no lock
+func (ts *ttlStore) del(key string) {
+	de, _ := ts.e.ts.m[key]
+	ts.DelElement(de)
+	delete(ts.m, key)
+}

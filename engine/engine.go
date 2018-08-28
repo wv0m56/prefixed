@@ -363,11 +363,7 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 
 		if delEl := e.dataStore.Del(k); delEl != nil {
 
-			{ // del from ttlStore
-				de, _ := e.ts.m[k]
-				e.ts.DelElement(de)
-				delete(e.ts.m, k)
-			}
+			e.ts.del(k)
 
 			go e.ep.dataDeletion(k)
 
@@ -394,11 +390,7 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 
 					e.dataStore.Del(it.Key())
 
-					{ // del from ttlStore
-						de, _ := e.ts.m[it.Key()]
-						e.ts.DelElement(de)
-						delete(e.ts.m, it.Key())
-					}
+					e.ts.del(it.Key())
 
 					go e.ep.dataDeletion(it.Key())
 
@@ -421,13 +413,7 @@ func (e *Engine) Invalidate(keys ...string) {
 	e.rwm.Lock()
 	for _, v := range keys {
 		e.dataStore.Del(v)
-
-		{ // del from ttlStore
-			de, _ := e.ts.m[v]
-			e.ts.DelElement(de)
-			delete(e.ts.m, v)
-		}
-
+		e.ts.del(v)
 		go e.ep.dataDeletion(v)
 	}
 	e.rwm.Unlock()
