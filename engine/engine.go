@@ -95,6 +95,13 @@ func NewEngine(opts *Options) (*Engine, error) {
 	// log2(ExpectedLen)
 	n := int(math.Floor(math.Log2(float64(opts.ExpectedLen / 2))))
 
+	var graveyardSize int
+	if sz := opts.ExpectedLen / 10000; sz >= 1000 {
+		graveyardSize = int(sz)
+	} else {
+		graveyardSize = 1000
+	}
+
 	e := &Engine{
 		&sync.RWMutex{},
 
@@ -118,6 +125,7 @@ func NewEngine(opts *Options) (*Engine, error) {
 			map[string]*llElement{},
 			opts.EvictPolicyRelevanceWindow,
 			map[string]struct{}{},
+			graveyardSize,
 		},
 
 		opts.O,
@@ -282,7 +290,7 @@ func (e *Engine) firstFill(key string) {
 		e.rwm.Lock()
 
 		if rowPayloadSize := rw.b.Len(); e.dataStore.PayloadSize()+int64(rowPayloadSize) > e.maxPayloadTotalSize {
-			e.evictUntilFree(rowPayloadSize)
+			e.evictUntilFree(4 * rowPayloadSize)
 		}
 
 		if exp != nil && exp.After(time.Now()) {
@@ -388,11 +396,7 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 				if !e.ep.isRelevant(it.Key()) ||
 					e.ep.cms.Count([]byte(it.Key())) <= uint64(i) {
 
-					e.dataStore.Del(it.Key())
-
-					e.ts.del(it.Key())
-
-					go e.ep.dataDeletion(it.Key())
+					e.delDataTsEp(it.Key())
 
 					if freeSpace := e.maxPayloadTotalSize - e.dataStore.PayloadSize(); freeSpace > int64(wantedFreeSpace) {
 						enoughFreed = true
@@ -405,6 +409,12 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 	}
 }
 
+func (e *Engine) delDataTsEp(key string) {
+	e.dataStore.Del(key)
+	e.ts.del(key)
+	go e.ep.dataDeletion(key)
+}
+
 // Invalidate deletes keys from the data, TTL, and evict policy store.
 // Only invoke Invalidate as a last resort for manual intervention.
 // Normally, control the invalidation process by setting sensible TTL
@@ -412,9 +422,7 @@ func (e *Engine) evictUntilFree(wantedFreeSpace int) {
 func (e *Engine) Invalidate(keys ...string) {
 	e.rwm.Lock()
 	for _, v := range keys {
-		e.dataStore.Del(v)
-		e.ts.del(v)
-		go e.ep.dataDeletion(v)
+		e.delDataTsEp(v)
 	}
 	e.rwm.Unlock()
 }

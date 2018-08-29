@@ -19,6 +19,7 @@ func TestEvictPolicy(t *testing.T) {
 		map[string]*llElement{},
 		50 * time.Millisecond,
 		map[string]struct{}{},
+		1000,
 	}
 
 	go ep.startLoop(time.Millisecond)

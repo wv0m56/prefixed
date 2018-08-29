@@ -7,8 +7,6 @@ import (
 	"github.com/tylertreat/BoomFilters"
 )
 
-const graveyardSize = 1000
-
 // evictPolicy is the data structure determining which row of the cache should
 // be removed in case of space contention. evictPolicy maintains a
 // relevanceWindow, inside of which access frequency of all keys are counted
@@ -20,6 +18,7 @@ type evictPolicy struct {
 	listElPtr       map[string]*llElement
 	relevanceWindow time.Duration
 	graveyard       map[string]struct{}
+	graveyardCap    int
 }
 
 func (ep *evictPolicy) isRelevant(key string) bool {
@@ -58,7 +57,7 @@ func (ep *evictPolicy) outRelevanceWindow(key string) {
 	ep.del(key)
 
 	// maintain graveyard size below max
-	if len(ep.graveyard) == graveyardSize {
+	if len(ep.graveyard) == ep.graveyardCap {
 
 		// delete a random graveyard member
 		for k := range ep.graveyard {
@@ -82,7 +81,9 @@ func (ep *evictPolicy) startLoop(step time.Duration) {
 
 	for range time.Tick(step) {
 		ep.Lock()
-		for it := ep.ll.front; it != nil && it.lastReadTime.Add(ep.relevanceWindow).Before(time.Now()); it = it.next {
+		for it := ep.ll.front; it != nil &&
+			it.lastReadTime.Add(ep.relevanceWindow).Before(time.Now()); it = it.next {
+
 			ep.outRelevanceWindow(it.val)
 		}
 		ep.Unlock()
